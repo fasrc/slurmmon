@@ -1,0 +1,444 @@
+#!/usr/bin/env python
+
+"""\
+NAME
+	slurmmond - gather data about SLURM behavior
+
+SYNOPSIS
+	slurmmond
+
+DESCRIPTION
+	n/a
+
+OPTIONS
+	-d, --debug
+		Log extra debugging information.
+	
+	--log-to-stderr
+		Log messages to stderr in addition to syslog
+
+	-h, --help
+		Print this help.
+
+REQUIREMENTS
+	n/a
+
+BUGS/TODO
+	create a slurmprobe user that can submit to all probed queues and config slurm or sudo to allow job priority updates
+
+AUTHOR
+	Copyright (c) 2013
+	Harvard FAS Research Computing
+	John A. Brunelle
+"""
+
+"""
+architecture
+	daemons for specific metric sets are run as parallel sub-processes (using multiprocessing)
+	they yield metrics -- tuples in the form (NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+"""
+
+import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing
+
+debug = False
+log_to_stderr = False
+fake_probejob = False
+
+try:
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'dh', ('debug', 'log-to-stderr', 'help',))
+except getopt.GetoptError, e:
+	sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
+	sys.exit(1)
+for opt, optarg in opts:
+	if opt in ('-d', '--debug'):
+		debug = True
+	elif opt in ('--log-to-stderr',):
+		log_to_stderr = True
+
+	elif opt in ('-h', '--help'):
+		sys.stdout.write(__doc__)
+		sys.exit(0)
+
+progname = os.path.basename(__file__)
+logoption = syslog.LOG_PID
+if log_to_stderr:
+	logoption |= syslog.LOG_PERROR
+
+re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
+
+
+
+#---
+
+
+
+#--- config
+
+#though many of these have "default" in the name, there is no way of changing them
+
+metric_prefix = '%s_' % progname
+
+#probejob sbatch parameters
+probejob_default_J = 'probejob'
+probejob_default_n = 1
+probejob_default_t = 2
+probejob_default_mem = 10
+probejob_default_o = '/dev/null'
+probejob_default_e = '/dev/null'
+probejob_default_command = 'true'
+probejob_default_priority = 999999999
+
+#metric_interval_*
+#the time to sleep between metric collection runs
+metric_interval_sdiag = 120
+metric_interval_jobcount = 120
+metric_interval_probejob= 0
+
+#metric_fail_retry_interval:
+#if a metric run fails, how long to wait before submitting again, in seconds
+metric_fail_retry_interval = 100
+
+#probejob_query_interval:
+#the time to wait between pokes to slurm to see if the probe job is no longer pending
+probejob_query_interval = 10
+
+
+
+
+#--- helpers
+
+def log(msg):
+	syslog.syslog(msg)
+
+def shQuote(text):
+	"""quote the given text so that it is a single, safe string in sh code.
+
+	Note that this leaves literal newlines alone (sh and bash are fine with that, but other tools may mess them up and need to do some special handling on the output of this function).
+	"""
+	return "'%s'" % text.replace("'", r"'\''")
+
+
+#--- metrics
+
+#these yield tuples representing metrics, and they do not loop
+
+def metrics_sdiag():
+	global progname
+
+	sh = 'sdiag'
+	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	stdout, stderr = [ x.strip() for x in p.communicate()]
+	if p.returncode!=0 or stderr!='':
+		raise Exception("sdiag failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+	
+	sched = None  #main or backfill
+	
+	for line in stdout.strip().split('\n'):
+		line = line.strip()
+
+		if line.startswith('Main schedule statistics'):
+			sched = 'main'
+			continue
+		if line.startswith('Backfilling stats'):  #it may also say "WARNING: data obtained in the middle of backfilling execution", but I'm not doing anything different in that case yet
+			sched = 'backfill'
+			continue
+
+		try:
+			name, value = line.split(':')
+			value = int(value)
+
+			name = re_nonalphanum.sub('_', name).strip('_').lower()
+
+			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+			name = '%ssdiag_%s' % (metric_prefix, name)
+			yield (name, value, 'int32', 'FIXME', progname, name, name)
+		except ValueError:
+			pass
+
+def metrics_jobcount():
+	global progname
+
+	for name, sh in (
+		('%sjobcount_total_pending'        % metric_prefix, "squeue -h -o '%u' -t PD | wc -l"),
+		('%sjobcount_total_running'        % metric_prefix, "squeue -h -o '%u' -t R  | wc -l"),
+		('%sjobcount_max_pending_one_user' % metric_prefix, "squeue -h -o '%u' -t PD | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
+		('%sjobcount_max_running_one_user' % metric_prefix, "squeue -h -o '%u' -t R  | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
+	):
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdout, stderr = [ x.strip() for x in p.communicate()]
+		if p.returncode!=0 or stderr!='':
+			raise Exception("squeue command [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+
+		if stdout=='': stdout = '0'
+		
+		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+		yield (name, stdout, 'uint32', 'jobs', progname, name, name)
+
+def metrics_probejob(
+	partition,
+	J='probejob',
+	n=probejob_default_n,
+	t=probejob_default_t,
+	mem=probejob_default_mem,
+	o=probejob_default_o,
+	e=probejob_default_e,
+	command=probejob_default_command,
+	priority=probejob_default_priority,
+	):
+
+	global progname
+
+
+	#--- internal state
+
+	t_submit = None  #unix time at submission, float
+	s_pend = None    #number of seconds the job spent pending, int
+
+
+	#--- build job definition
+	optargs = (
+		('-p', partition),
+		('-J', J),
+		('-n', n),
+		('-t', t),
+		('--mem', mem),
+		('-o', o),
+		('-e', e),
+	)
+	
+	sh = 'sbatch'
+	for x in optargs:
+		sh += ' %s %s' % (shQuote(x[0]), shQuote(str(x[1])))
+	sh += ' --wrap %s' % shQuote(command)
+
+	
+	#--- submit job
+	
+	if debug:
+		log("DEBUG: submitting probejob with [%r]" % sh)
+	#(how long this takes is not of interest, as it won't take longer than the short MessageTimeout, and hitting that causes an exception below)
+	
+	if fake_probejob:
+		stdout, stderr = 'Submitted batch job 1234', ''
+	else:
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdout, stderr = [ x.strip() for x in p.communicate()]
+		if p.returncode!=0 or stderr!='':
+			raise Exception("job submission [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+	
+	#note the time we submitted so that we can compute how long it ends up pending
+	t_submit = time.time()
+
+	#extract JOBID from "Submitted batch job JOBID"
+	try:
+		jobid = int(stdout.rsplit(' ',1)[1])
+	except (ValueError, IndexError):
+		raise Exception("unable to parse jobid from [%r]" % stdout)
+	
+	log("submitted probejob, assigned jobid [%d]" % jobid)
+	
+
+	#--- update its priority
+
+	sh = "sudo scontrol update JobId=%s Priority=%s" % (shQuote(str(jobid)), shQuote(str(priority)))
+	if debug:
+		log("DEBUG: updating probejob priority with [%r]" % sh)
+	
+	if fake_probejob:
+		stdout, stderr = '', ''
+	else:
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdout, stderr = [ x.strip() for x in p.communicate()]
+		if p.returncode!=0 or stderr!='':
+			raise Exception("job priority update [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+
+
+	#--- wait for job not be pending and then wait for job to finish
+
+	#I wish I had a way to actually wait on the job instead of having to poke slurm in a loop
+	#"scontrol wait_job JOBID" doesn't work, it just says "scontrol: Job JOBID no longer running", even while PENDING
+	#(haven't decided if squeue or sacct is better here)
+	sh = "squeue -h -o '%T' -t ALL -j " + shQuote(str(jobid))
+
+	#progress:
+	#	0 ~ submitted
+	#	1 ~ no longer pending, but not yet done
+	#	2 ~ done (success or failure, it doesn't matter)
+	progress = 0
+
+	while True:
+		if debug:
+			log("DEBUG: querying probejob state with [%r]" % sh)
+
+		if fake_probejob:
+			if (time.time() - t_submit) < 4:
+				stdout, stderr = 'PENDING', ''
+			else:
+				#stdout, stderr = '', 'Invalid job id specified'
+				stdout, stderr = 'COMPLETED', ''
+		else:
+			p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			stdout, stderr = [ x.strip() for x in p.communicate()]
+
+		#interpret the job's state
+		if 'Invalid job id specified' in stderr:
+			progress = 2
+		elif stderr=='':
+			if stdout in ('COMPLETED', 'FAILED', 'CANCELED', 'TIMEOUT', 'NODEFAIL'):
+				progress = 2
+			elif stdout!='PENDING':
+				progress = 1
+		else:
+			if debug:
+				log("DEBUG: WARNING: unable to probejob query result stdout [%r] stderr [%r] returncode [%d]" % (jobid, stdout, stderr, p.returncode))
+		
+		#update the pend time if necessary
+		if progress>0 and s_pend is None:
+			s_pend = int(round(time.time() - t_submit))
+			if debug:
+				log("probejob [%d] no longer pending, after [%s] seconds" % (jobid, s_pend))
+		
+		#break or continue
+		if progress==2:
+			if debug:
+				state = stdout
+				if state=='': state = 'n/a'
+				log("probejob [%d] done, last seen in state [%s]" % (jobid, (stdout if stdout!='' else 'n/a')))
+			break
+		else:
+			if s_pend is None:
+				if debug:
+					log("DEBUG: probejob [%d] still pending" % (jobid))
+
+			if debug:
+				log("DEBUG: sleeping for [%d] seconds" % probejob_query_interval)
+			time.sleep(probejob_query_interval)
+
+
+	#--- report
+
+	#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+	s = 'pend time for a job in %s' % partition
+	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', progname, s, s)
+
+
+
+#--- child daemons
+
+def daemon(name, metricq, metricf, loopsleep):
+	#name -- an identifying string, used in the log
+	#metricq -- a multiprocessing.Queue in which to put metrics
+	#metricf -- a function that yields metrics
+
+	global progname
+	global logoption
+	name = '%s(%s)' % (progname, name)
+	syslog.closelog()
+	syslog.openlog(name, logoption)
+
+	try:
+		while True:
+			try:
+				for metric in metricf():
+					metricq.put(metric)
+			except Exception, e:
+				log("metrics for [%s] failed with message [%s]" % (name, e))
+				if debug:
+					for line in ''.join(traceback.format_exception(*sys.exc_info())).strip().split('\n'):
+						log("DEBUG: %s" % line)
+				
+				if debug:
+					log("DEBUG: sleeping for [%d] seconds" % metric_fail_retry_interval)
+				time.sleep(metric_fail_retry_interval)
+			
+			if debug:
+				log("DEBUG: sleeping for [%d] seconds" % loopsleep)
+			time.sleep(loopsleep)
+			
+	except (KeyboardInterrupt, SystemExit):
+		#FIXME look for child processes and try to kill them
+		log("shutting down")
+
+	syslog.closelog()
+
+
+
+#---main
+
+
+
+if __name__=='__main__':
+	#--setup
+
+	syslog.openlog(progname, logoption)
+
+	metricq = multiprocessing.Queue()
+
+	children = []
+
+
+	#--- startup
+
+	log("starting")
+	
+	#sdiag metrics
+	p = multiprocessing.Process(target=lambda:daemon('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
+	p.start()
+	log("started sdiag metrics daemon, pid [%d]" % p.pid)
+	children.append(p)
+	
+	#jobcount metrics
+	p = multiprocessing.Process(target=lambda:daemon('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
+	p.start()
+	log("started sdiag metrics daemon, pid [%d]" % p.pid)
+	children.append(p)
+
+	#probejob metrics
+	for partition in ('interact', 'general'):
+		name = 'probejob-%s' % partition
+		p = multiprocessing.Process(target=lambda:daemon(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
+		p.start()
+		log("started [%s] metrics daemon, pid [%d]" % (name, p.pid))
+		children.append(p)
+
+
+	#--- define shutdown
+
+	def shutdown(signum, frame):
+		log("caught signal [%d], shutting down" % signum)
+		for p in children:
+			if debug:
+				log("DEBUG: attempting to kill child pid [%d] if necessary" % p.pid)
+			try:
+				p.terminate()
+			except Exception:
+				pass
+			p.join()
+		log("done")
+		syslog.closelog()
+		sys.exit(0)
+	for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
+		signal.signal(s, shutdown)
+
+
+	#--- run
+	
+	while True:
+		m = metricq.get()
+		
+		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+		if debug:
+			log("DEBUG: sending metric [%s]" % str(m))
+		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s' % (
+			shQuote(str(m[0])),
+			shQuote(str(m[1])),
+			shQuote(str(m[2])),
+			shQuote(str(m[3])),
+			shQuote(str(m[4])),
+			shQuote(str(m[5])),
+			shQuote(str(m[6])),
+		)
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		stdout, stderr = [ x.strip() for x in p.communicate()]
+		if p.returncode!=0 or stderr!='':
+			log("WARNING: gmetric [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))

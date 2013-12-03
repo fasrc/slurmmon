@@ -148,6 +148,8 @@ def metrics_sdiag():
 			value = int(value)
 
 			name = re_nonalphanum.sub('_', name).strip('_').lower()
+			if sched is not None:
+				name = '%s_%s' % (sched, name)
 
 			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 			name = '%ssdiag_%s' % (metric_prefix, name)
@@ -429,7 +431,7 @@ if __name__=='__main__':
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		if debug:
 			log("DEBUG: sending metric [%s]" % str(m))
-		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s' % (
+		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s --tmax 86400' % (  #FIXME proper --tmax
 			shQuote(str(m[0])),
 			shQuote(str(m[1])),
 			shQuote(str(m[2])),

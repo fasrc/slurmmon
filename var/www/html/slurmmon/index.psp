@@ -1,0 +1,100 @@
+<%
+import time, re
+
+
+#--- config
+
+if True:
+	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
+	config_cluster = 'vm'
+	config_host = 'slurm-test.rc.fas.harvard.edu'
+else:
+	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/holyoke_other'
+	config_cluster = 'holyoke_service'
+	config_host = 'holy-slurm01.rc.fas.harvard.edu'
+
+
+#--- helpers
+
+RE_OK_INPUT = re.compile(r'^[a-zA-Z0-9\._\- ]*$')
+
+def inputcheck(txt):
+	if not RE_OK_INPUT.match(txt): raise Exception("failed input sanitization on [%s]" % repr(txt))
+	return txt
+
+def buildoptions(var):
+	s = ''
+	for option in possible[var]:
+		s += '<option'
+		if option==current[var]: s += ' selected="selected"'
+		s += '>%s</option>' % option
+	return s
+
+def graphurl(name):
+	return '%s/graph.php?g=%s&r=%s&z=%s"' % (config_gmetaurl, name, current['r'], current['z'])
+	
+
+#--- ganglia web vars
+
+#see: http://sourceforge.net/apps/trac/ganglia/wiki/web_get_vars
+
+possible = {}
+default = {}
+current = {}
+
+#range
+possible['r'] = ('hour', '2hr', '4hr', 'day', 'week', 'month', 'year')
+default['r'] = 'hour'
+
+#size
+possible['z'] = ('small', 'medium', 'default', 'large', 'xlarge')
+default['z'] = 'default'
+
+current['r'] = inputcheck(form.get('r', default['r']))
+current['z'] = inputcheck(form.get('z', default['r']))
+current['c'] = config_cluster
+current['h'] = config_host
+
+
+#--- end indent
+%>
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" dir="ltr" lang="en-US">
+<head>
+</head>
+
+<body>
+
+<p>
+<form method="get">
+<table>
+	<tr>
+		<td>
+			<strong>range</strong>:
+			<select name="r" onchange="document.forms[0].submit();">
+			<%= buildoptions('r') %>
+			</select>
+		</td>
+		<td>
+			<strong>size</strong>:
+			<select name="z" onchange="document.forms[0].submit();">
+			<%= buildoptions('z') %>
+			</select>
+		</td>
+	</tr>
+</table>
+</form>
+<p>
+
+<p>
+<h1>job counts</h1>
+<strong>total jobs:</strong>
+<br />
+<img src="<%= graphurl('slurm_jobcount_total_stack')%>" />
+</p>
+
+<p>
+<small>page generated:&nbsp;<%= time.ctime() %></small>
+</p>

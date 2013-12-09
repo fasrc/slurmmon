@@ -11,6 +11,9 @@ DESCRIPTION
 	n/a
 
 OPTIONS
+	-v, --verbose
+		Write metrics to stdout.
+	
 	-d, --debug
 		Log extra debugging information.
 	
@@ -40,17 +43,20 @@ architecture
 
 import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing
 
+verbose = False
 debug = False
 log_to_stderr = False
 fake_probejob = False
 
 try:
-	opts, args = getopt.gnu_getopt(sys.argv[1:], 'dh', ('debug', 'log-to-stderr', 'help',))
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdh', ('verbose', 'debug', 'log-to-stderr', 'help',))
 except getopt.GetoptError, e:
 	sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
 	sys.exit(1)
 for opt, optarg in opts:
-	if opt in ('-d', '--debug'):
+	if opt in ('-v', '--verbose'):
+		verbose = True
+	elif opt in ('-d', '--debug'):
 		debug = True
 	elif opt in ('--log-to-stderr',):
 		log_to_stderr = True
@@ -92,11 +98,11 @@ probejob_default_priority = 999999999
 #the time to sleep between metric collection runs
 metric_interval_sdiag = 120
 metric_interval_jobcount = 120
-metric_interval_probejob= 0
+metric_interval_probejob = 120
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
-metric_fail_retry_interval = 100
+metric_fail_retry_interval = 120
 
 #probejob_query_interval:
 #the time to wait between pokes to slurm to see if the probe job is no longer pending
@@ -130,6 +136,40 @@ def metrics_sdiag():
 	stdout, stderr = [ x.strip() for x in p.communicate()]
 	if p.returncode!=0 or stderr!='':
 		raise Exception("sdiag failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+
+	##e.g.
+	#*******************************************************
+	#sdiag output at Mon Dec  9 12:23:32 2013
+	#Data since      Sun Dec  8 19:00:01 2013
+	#*******************************************************
+	#Server thread count: 3
+	#Agent queue size:    0
+	#
+	#Jobs submitted: 0
+	#Jobs started:   0
+	#Jobs completed: 0
+	#Jobs canceled:  0
+	#Jobs failed:    0
+	#
+	#Main schedule statistics (microseconds):
+	#        Last cycle:   761
+	#        Max cycle:    1207
+	#        Total cycles: 1043
+	#        Mean cycle:   746
+	#        Mean depth cycle:  135
+	#        Cycles per minute: 1
+	#        Last queue length: 135
+	#
+	#Backfilling stats
+	#        Total backfilled jobs (since last slurm start): 0
+	#        Total backfilled jobs (since last stats cycle start): 0
+	#        Total cycles: 0
+	#        Last cycle when: Tue Dec  3 16:32:39 2013
+	#        Last cycle: 0
+	#        Max cycle:  0
+	#        Last depth cycle: 0
+	#        Last depth cycle (try sched): 0
+	#        Last queue length: 0
 	
 	sched = None  #main or backfill
 	
@@ -148,13 +188,36 @@ def metrics_sdiag():
 			value = int(value)
 
 			name = re_nonalphanum.sub('_', name).strip('_').lower()
+
+			units = '(units unknown)'
+			if 'jobs' in name:
+				units = 'jobs'
+			elif name.endswith('depth_cycle') or \
+				 name.endswith('depth_cycle_try_sched') or \
+				 name.endswith('depth_mean') or \
+				 name.endswith('depth_mean_try_depth'):
+				units = 'jobs'
+			elif name.endswith('cycle'):  #(mean_depth_cycle already handled above)
+				units = 'microseconds'
+			elif name.endswith('cycles'):
+				units = 'cycles'
+			elif 'cycles per minute' in name:
+				units = 'cycles/min'
+			elif 'queue_length' in name:
+				units = 'jobs'
+			elif name.endswith('thread_count'):
+				units = 'threads'
+			elif name.endswith('agent_queue_size'):
+				units = 'agents'
+			
 			if sched is not None:
 				name = '%s_%s' % (sched, name)
-
-			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 			name = '%ssdiag_%s' % (metric_prefix, name)
-			yield (name, value, 'int32', 'FIXME', progname, name, name)
+			
+			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+			yield (name, value, 'int32', units, progname, name, name)
 		except ValueError:
+			#e.g. dates
 			pass
 
 def metrics_jobcount():
@@ -331,6 +394,7 @@ def daemon(name, metricq, metricf, loopsleep):
 	#name -- an identifying string, used in the log
 	#metricq -- a multiprocessing.Queue in which to put metrics
 	#metricf -- a function that yields metrics
+	#loopsleep -- interval to sleep betwen runs
 
 	global progname
 	global logoption
@@ -352,7 +416,7 @@ def daemon(name, metricq, metricf, loopsleep):
 				if debug:
 					log("DEBUG: sleeping for [%d] seconds" % metric_fail_retry_interval)
 				time.sleep(metric_fail_retry_interval)
-			
+
 			if debug:
 				log("DEBUG: sleeping for [%d] seconds" % loopsleep)
 			time.sleep(loopsleep)
@@ -440,6 +504,8 @@ if __name__=='__main__':
 			shQuote(str(m[5])),
 			shQuote(str(m[6])),
 		)
+		if verbose:
+			print sh
 		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		stdout, stderr = [ x.strip() for x in p.communicate()]
 		if p.returncode!=0 or stderr!='':

@@ -8,17 +8,24 @@ SYNOPSIS
 	slurmmond
 
 DESCRIPTION
-	n/a
+	This runs several child processes that loop reporting back to the parent various metrics.
+	The master process sends these to ganglia by running gmetric.
 
 OPTIONS
+	--daemon
+		Run as a daemon instead of in the foreground as a child of the calling process.
+
 	-v, --verbose
-		Write metrics to stdout.
+		Write metrics to stdout, too (as gmetric commands).
 	
 	-d, --debug
 		Log extra debugging information.
 	
+	-p, --pretend
+		Don't actually send gmetrics.
+	
 	--log-to-stderr
-		Log messages to stderr in addition to syslog
+		Log messages to stderr in addition to syslog.
 
 	-h, --help
 		Print this help.
@@ -27,7 +34,7 @@ REQUIREMENTS
 	n/a
 
 BUGS/TODO
-	create a slurmprobe user that can submit to all probed queues and config slurm or sudo to allow job priority updates
+	n/a
 
 AUTHOR
 	Copyright (c) 2013
@@ -37,27 +44,34 @@ AUTHOR
 
 """
 architecture
-	daemons for specific metric sets are run as parallel sub-processes (using multiprocessing)
+	metrics for individual categories are run as parallel sub-processes (using multiprocessing)
 	they yield metrics -- tuples in the form (NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 """
 
 import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing
 
+daemon = False
 verbose = False
 debug = False
+pretend = False
 log_to_stderr = False
 fake_probejob = False
 
 try:
-	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdh', ('verbose', 'debug', 'log-to-stderr', 'help',))
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('daemon', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
 except getopt.GetoptError, e:
 	sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
 	sys.exit(1)
 for opt, optarg in opts:
-	if opt in ('-v', '--verbose'):
+	if opt in ('--daemon',):
+		daemon = True
+	
+	elif opt in ('-v', '--verbose'):
 		verbose = True
 	elif opt in ('-d', '--debug'):
 		debug = True
+	elif opt in ('-p', '--pretend'):
+		pretend = True
 	elif opt in ('--log-to-stderr',):
 		log_to_stderr = True
 
@@ -70,11 +84,9 @@ logoption = syslog.LOG_PID
 if log_to_stderr:
 	logoption |= syslog.LOG_PERROR
 
-re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
 
 
-
-#---
+#===
 
 
 
@@ -123,6 +135,56 @@ def shQuote(text):
 	"""
 	return "'%s'" % text.replace("'", r"'\''")
 
+def daemonize(chdir='/'):
+	"""Daemonize using the standard setsid/fork method.
+	
+	The continues execution in a daemon process, i.e. a process that:
+	1) is adopted by init
+	2) has no controlling terminal
+	3) is in a session with no session leader
+	4) is in a process group with no process group leader
+	5) has no files from the calling environment left open
+
+	This only redirects i/o to/from the given stdin/stdout/stderr if those respecitive streams are ttys, otherwise it leaves them alone.
+	"""
+	
+	#just to be safe, so buffered output is not double written by both parent and child
+	#note that parents are already using os._exit() below, which doesn't flush buffers, instead of sys.exit()
+	for f in sys.stdout, sys.stderr: f.flush()
+	
+	#if this is a process group leader it cannot call setsid; fork and continue in the child (which won't be a process group leader)
+	if os.getpid()==os.getpgid(0):
+		pid = os.fork()
+		if pid>0: os._exit(0)
+	
+	#get rid of the controlling terminal and put this in a new session and process group
+	os.setsid()
+	
+	#fork, to make sure no parent hangs waiting (possibly already taken care of by the fork above), and to make the new session and new process group have no leaders
+	pid = os.fork()
+	if pid>0: os._exit(0)
+	
+	#don't leave open anything from the calling environment
+	os.chdir(chdir)
+	#os.umask(0)
+
+	if sys.stdin.isatty():
+		si = file('/dev/null', 'r')
+		os.dup2(si.fileno(), sys.stdin.fileno())
+	if sys.stdout.isatty():
+		so = file('/dev/null', 'a+')
+		os.dup2(so.fileno(), sys.stdout.fileno())
+	if sys.stderr.isatty():
+		se = file('/dev/null', 'a+', 0)
+		os.dup2(se.fileno(), sys.stderr.fileno())
+
+
+
+#--- misc
+
+re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
+
+
 
 #--- metrics
 
@@ -139,37 +201,41 @@ def metrics_sdiag():
 
 	##e.g.
 	#*******************************************************
-	#sdiag output at Mon Dec  9 12:23:32 2013
-	#Data since      Sun Dec  8 19:00:01 2013
+	#sdiag output at Mon Dec  9 16:45:13 2013
+	#Data since      Mon Dec  9 15:37:51 2013
 	#*******************************************************
 	#Server thread count: 3
 	#Agent queue size:    0
 	#
-	#Jobs submitted: 0
+	#Jobs submitted: 8
 	#Jobs started:   0
 	#Jobs completed: 0
 	#Jobs canceled:  0
 	#Jobs failed:    0
 	#
 	#Main schedule statistics (microseconds):
-	#        Last cycle:   761
-	#        Max cycle:    1207
-	#        Total cycles: 1043
-	#        Mean cycle:   746
-	#        Mean depth cycle:  135
-	#        Cycles per minute: 1
-	#        Last queue length: 135
+	#		Last cycle:   1138
+	#		Max cycle:    2951
+	#		Total cycles: 71
+	#		Mean cycle:   1192
+	#		Mean depth cycle:  184
+	#		Cycles per minute: 1
+	#		Last queue length: 190
 	#
 	#Backfilling stats
-	#        Total backfilled jobs (since last slurm start): 0
-	#        Total backfilled jobs (since last stats cycle start): 0
-	#        Total cycles: 0
-	#        Last cycle when: Tue Dec  3 16:32:39 2013
-	#        Last cycle: 0
-	#        Max cycle:  0
-	#        Last depth cycle: 0
-	#        Last depth cycle (try sched): 0
-	#        Last queue length: 0
+	#		Total backfilled jobs (since last slurm start): 0
+	#		Total backfilled jobs (since last stats cycle start): 0
+	#		Total cycles: 6
+	#		Last cycle when: Mon Dec  9 15:43:29 2013
+	#		Last cycle: 6052
+	#		Max cycle:  6287
+	#		Mean cycle: 5922
+	#		Last depth cycle: 190
+	#		Last depth cycle (try sched): 0
+	#		Depth Mean: 185
+	#		Depth Mean (try depth): 0
+	#		Last queue length: 190
+	#		Queue length mean: 185
 	
 	sched = None  #main or backfill
 	
@@ -201,7 +267,7 @@ def metrics_sdiag():
 				units = 'microseconds'
 			elif name.endswith('cycles'):
 				units = 'cycles'
-			elif 'cycles per minute' in name:
+			elif 'cycles_per_minute' in name:
 				units = 'cycles/min'
 			elif 'queue_length' in name:
 				units = 'jobs'
@@ -300,12 +366,13 @@ def metrics_probejob(
 	except (ValueError, IndexError):
 		raise Exception("unable to parse jobid from [%r]" % stdout)
 	
-	log("submitted probejob, assigned jobid [%d]" % jobid)
+	if debug:
+		log("submitted probejob, assigned jobid [%d]" % jobid)
 	
 
 	#--- update its priority
 
-	sh = "sudo scontrol update JobId=%s Priority=%s" % (shQuote(str(jobid)), shQuote(str(priority)))
+	sh = "sudo -u slurm scontrol update JobId=%s Priority=%s" % (shQuote(str(jobid)), shQuote(str(priority)))
 	if debug:
 		log("DEBUG: updating probejob priority with [%r]" % sh)
 	
@@ -388,13 +455,15 @@ def metrics_probejob(
 
 
 
-#--- child daemons
+#--- child processes
 
-def daemon(name, metricq, metricf, loopsleep):
-	#name -- an identifying string, used in the log
-	#metricq -- a multiprocessing.Queue in which to put metrics
-	#metricf -- a function that yields metrics
-	#loopsleep -- interval to sleep betwen runs
+def child(name, metricq, metricf, loopsleep):
+	"""run a child process that produces metrics
+	name -- an identifying string, used in the log
+	metricq -- a multiprocessing.Queue in which to put metrics
+	metricf -- a function that yields metrics
+	loopsleep -- interval to sleep betwen runs
+	"""
 
 	global progname
 	global logoption
@@ -431,10 +500,11 @@ def daemon(name, metricq, metricf, loopsleep):
 
 #---main
 
-
-
 if __name__=='__main__':
 	#--setup
+
+	if daemon:
+		daemonize()
 
 	syslog.openlog(progname, logoption)
 
@@ -448,23 +518,23 @@ if __name__=='__main__':
 	log("starting")
 	
 	#sdiag metrics
-	p = multiprocessing.Process(target=lambda:daemon('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
+	p = multiprocessing.Process(target=lambda:child('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
 	p.start()
-	log("started sdiag metrics daemon, pid [%d]" % p.pid)
+	log("started sdiag metrics process, pid [%d]" % p.pid)
 	children.append(p)
 	
 	#jobcount metrics
-	p = multiprocessing.Process(target=lambda:daemon('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
+	p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
 	p.start()
-	log("started sdiag metrics daemon, pid [%d]" % p.pid)
+	log("started jobcount metrics process, pid [%d]" % p.pid)
 	children.append(p)
 
 	#probejob metrics
 	for partition in ('interact', 'general'):
 		name = 'probejob-%s' % partition
-		p = multiprocessing.Process(target=lambda:daemon(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
+		p = multiprocessing.Process(target=lambda:child(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
 		p.start()
-		log("started [%s] metrics daemon, pid [%d]" % (name, p.pid))
+		log("started [%s] metrics process, pid [%d]" % (name, p.pid))
 		children.append(p)
 
 
@@ -494,7 +564,11 @@ if __name__=='__main__':
 		
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		if debug:
-			log("DEBUG: sending metric [%s]" % str(m))
+			msg = "DEBUG: "
+			if pretend:
+				msg += "PRETEND: "
+			msg += "sending metric [%s]" % str(m)
+			log(msg)
 		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s --tmax 86400' % (  #FIXME proper --tmax
 			shQuote(str(m[0])),
 			shQuote(str(m[1])),
@@ -506,7 +580,8 @@ if __name__=='__main__':
 		)
 		if verbose:
 			print sh
-		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-		stdout, stderr = [ x.strip() for x in p.communicate()]
-		if p.returncode!=0 or stderr!='':
-			log("WARNING: gmetric [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+		if not pretend:
+			p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+			stdout, stderr = [ x.strip() for x in p.communicate()]
+			if p.returncode!=0 or stderr!='':
+				log("WARNING: gmetric [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))

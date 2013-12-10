@@ -64,8 +64,8 @@ current['h'] = config_host
 <html xmlns="http://www.w3.org/1999/xhtml" dir="ltr" lang="en-US">
 <head>
 </head>
-
 <body>
+
 
 <p>
 <form method="get">
@@ -88,13 +88,101 @@ current['h'] = config_host
 </form>
 <p>
 
-<p>
+
 <h1>job counts</h1>
-<strong>total jobs:</strong>
-<br />
-<img src="<%= graphurl('slurm_jobcount_total_stack')%>" />
+<p>
+<table>
+<tr>
+	<td style="text-align:center;">
+		<strong>overall live state</strong>
+		<br />
+		<img src="<%= graphurl('slurm_jobcount_total')%>" />
+	</td>
+	<td style="text-align:center;">
+		<strong>dominant user(s)</strong>
+		<br />
+		<img src="<%= graphurl('slurm_jobcount_one_user')%>" />
+	</td>
+</tr>
+<tr>
+	<td style="text-align:center;">
+		<strong>jobs counters since sdiag reset</strong>
+		<br />
+		<img src="<%= graphurl('slurm_sdiag_jobs')%>" />
+	</td>
+	<td style="text-align:center;">
+		<strong>backfilled jobs since various restarts</strong>
+		<br />
+		<img src="<%= graphurl('slurm_sdiag_backfill_jobs')%>" />
+	</td>
+</tr>
+</table>
 </p>
+
+
+<h1>job turnaround</h1>
+<p>
+<table>
+<tr>
+	<td style="text-align:center;">
+		<strong>time a simple, short, high-priority job<br />spent pending in various queues</strong>
+		<br />
+		<img src="<%= graphurl('slurm_probejob_pendtime')%>" />
+	</td>
+</tr>
+</table>
+
+</p>
+
+
+<h1>scheduler performance</h1>
+<p>
+<table>
+<tr>
+	<td style="text-align:center;">
+		<strong>slurmctld threads and queue size</strong>
+		<br />
+		<img src="<%= graphurl('slurm_sdiag_procs')%>" />
+	</td>
+	<td style="text-align:center;">
+		<strong>main scheduler cycle rate</strong>
+		<br />
+		<img src="<%= graphurl('slurm_sdiag_main_cycles_per_minute')%>" />
+	</td>
+</tr>
+</table>
+
+<br />
+<br />
+
+<table  style="background-color:#cccccc;">
+<%
+for sched in (None, 'main', 'backfill'):
+	req.write('<tr><td style="text-align:right;">')
+	if sched is not None:
+		req.write('<strong><span style="font-size:larger;">%s</span></strong>:' % sched)
+	req.write('</td>')
+	for graph, description in (
+		('times' , 'time spent in scheduling cycle'),
+		('cycles', 'number of scheduling cycles since sdiag reset'),
+		('depths', 'scheduling attempt depths'),
+		):
+		req.write('<td style="text-align:center;">')
+		if sched is None:
+			req.write('<strong>%s</strong>' % description)
+		else:
+			req.write('<img src="%s" />' % graphurl('slurm_sdiag_%s_%s' % (sched, graph)))
+		req.write('</td>')
+	req.write('</td>')
+#end indent
+%>
+</table>
+</p>
+
 
 <p>
 <small>page generated:&nbsp;<%= time.ctime() %></small>
 </p>
+
+</body>
+</html>

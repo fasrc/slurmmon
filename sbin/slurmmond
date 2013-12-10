@@ -46,6 +46,71 @@ AUTHOR
 architecture
 	metrics for individual categories are run as parallel sub-processes (using multiprocessing)
 	they yield metrics -- tuples in the form (NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+
+metrics (subject to change)
+	#--jobcount
+
+#	slurmmond_jobcount_total_pending.rrd (jobs)
+#	slurmmond_jobcount_total_running.rrd (jobs)
+#	slurmmond_jobcount_max_pending_one_user.rrd (jobs)
+#	slurmmond_jobcount_max_running_one_user.rrd (jobs)
+
+
+	#--- probejob
+
+#	slurmmond_probejob_pendtime_general.rrd (seconds)
+#	slurmmond_probejob_pendtime_interact.rrd (seconds)
+
+
+	#--- sdiag
+
+#	slurmmond_sdiag_server_thread_count.rrd (threads)
+#	slurmmond_sdiag_agent_queue_size.rrd (agents)
+
+#	slurmmond_sdiag_jobs_submitted.rrd (jobs)
+#	slurmmond_sdiag_jobs_started.rrd (jobs)
+#	slurmmond_sdiag_jobs_completed.rrd (jobs)
+#	slurmmond_sdiag_jobs_canceled.rrd (jobs)
+#	slurmmond_sdiag_jobs_failed.rrd (jobs)
+
+#	slurmmond_sdiag_main_last_cycle.rrd (microseconds)
+#	slurmmond_sdiag_main_max_cycle.rrd (microseconds)
+#	slurmmond_sdiag_main_total_cycles.rrd (cycles)
+#	slurmmond_sdiag_main_mean_cycle.rrd (microseconds)
+#	slurmmond_sdiag_main_mean_depth_cycle.rrd (jobs)
+#	slurmmond_sdiag_main_cycles_per_minute.rrd (cycles/min)
+#	slurmmond_sdiag_main_last_queue_length.rrd (jobs)
+
+#	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_slurm_start.rrd (jobs)
+#	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_stats_cycle_start.rrd (jobs)
+#	slurmmond_sdiag_backfill_total_cycles.rrd (cycles)
+#	slurmmond_sdiag_backfill_last_cycle.rrd (microseconds)
+#	slurmmond_sdiag_backfill_max_cycle.rrd (microseconds)
+#	slurmmond_sdiag_backfill_mean_cycle.rrd (microseconds)
+#	slurmmond_sdiag_backfill_last_depth_cycle.rrd (jobs)
+#	slurmmond_sdiag_backfill_last_depth_cycle_try_sched.rrd (jobs)
+#	slurmmond_sdiag_backfill_depth_mean.rrd (jobs)
+#	slurmmond_sdiag_backfill_depth_mean_try_depth.rrd (jobs)
+#	slurmmond_sdiag_backfill_last_queue_length.rrd (jobs)
+#	slurmmond_sdiag_backfill_queue_length_mean.rrd (jobs)
+
+
+	#--- EXPIRE (missing sched type)
+
+	slurmmond_sdiag_max_cycle.rrd
+	slurmmond_sdiag_mean_cycle.rrd
+	slurmmond_sdiag_mean_depth_cycle.rrd
+	slurmmond_sdiag_queue_length_mean.rrd
+	slurmmond_sdiag_total_backfilled_jobs_since_last_slurm_start.rrd
+	slurmmond_sdiag_total_backfilled_jobs_since_last_stats_cycle_start.rrd
+	slurmmond_sdiag_total_cycles.rrd
+	slurmmond_sdiag_cycles_per_minute.rrd
+	slurmmond_sdiag_depth_mean.rrd
+	slurmmond_sdiag_depth_mean_try_depth.rrd
+	slurmmond_sdiag_last_cycle.rrd
+	slurmmond_sdiag_last_depth_cycle.rrd
+	slurmmond_sdiag_last_depth_cycle_try_sched.rrd
+	slurmmond_sdiag_last_queue_length.rrd
 """
 
 import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing

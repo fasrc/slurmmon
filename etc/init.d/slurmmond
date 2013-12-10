@@ -3,7 +3,8 @@
 # chkconfig: 345 90 10
 # description: slurmmond - gather data about SLURM behavior
 #
-# This is a simple distro-agnostic init script supporting start, stop, restart, and status.
+# This is a simple distro-agnostic init script supporting start, stop, restart, 
+# and status.
 # 
 # It uses no external helpers like /etc/init.d/functions, 
 # /lib/lsb/init-functions, etc; it uses no external state file like /var/run, 
@@ -29,17 +30,19 @@ SERVICE_NAME=$(basename "$0")
 
 # COMMAND_LINE -- what to run
 # The command used to invoke the service, including hardcoded options/arguments 
-# (others may be appended when start is called).  Shell metacharacters like `&' cannot be used here.  This is used as the search 
-# string for finding processes to stop, determining status, etc. (see above 
-# notes; hint: if the program is a script, prepend the interpreter program to 
-# this COMMAND_LINE, since that'll make searches less likely to match other 
-# programs (like editors with the script open)).
+# (others may be appended when start is called).  Shell metacharacters like `&' 
+# cannot be used here.  This is used as the search string for finding processes 
+# to stop, determining status, etc. (see above notes; hint: if the program is a 
+# script, prepend the interpreter program to this COMMAND_LINE, since that'll 
+# make searches less likely to match other programs (like editors with the 
+# script open)).
 COMMAND_LINE="python /sbin/slurmmond --daemon"
 
 # SHOULD_RUN_AS -- enforce this script be run by a specific user
 # If not blank, makes sure that start and stop run as the specified user (this 
-# does not su or sudo to that user, just checks the current user; see SUDO_TO for that).
-# If SUDO_TO is not used, it can also help for process selection (status and stop) in the same way SUDO_TO helps.
+# does not su or sudo to that user, just checks the current user; see SUDO_TO 
+# for that).  If SUDO_TO is not used, it can also help for process selection 
+# (status and stop) in the same way SUDO_TO helps.
 SHOULD_RUN_AS='root'
 
 # SUDO_TO -- run COMMAND_LINE as a specific user
@@ -67,7 +70,8 @@ pids () {
 		psargs='ax'
 	fi
 	while read pid; do
-		test -d /proc/"$pid" && test $(ps -o state= -p "$pid") != Z && echo $pid
+		#extra condition -- slurmmond uses multiple processes, only operate on the master one owned by init
+		test -d /proc/"$pid" && test $(ps -o state= -p "$pid") != Z && test $(ps -o ppid= -p "$pid") == 1 && echo $pid
 	done < <(ps $psargs -o 'pid command' | grep -F "$COMMAND_LINE" | grep -vP '^\s*\d+ grep\b' | awk '{print $1}')
 }
 

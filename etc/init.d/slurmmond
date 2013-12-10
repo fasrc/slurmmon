@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+#
+# chkconfig: 345 90 10
+# description: slurmmond - gather data about SLURM behavior
+#
+# This is a simple distro-agnostic init script supporting start, stop, restart, and status.
+# 
+# It uses no external helpers like /etc/init.d/functions, 
+# /lib/lsb/init-functions, etc; it uses no external state file like /var/run, 
+# either.  However, it can be crude -- if grepping ps output for the 
+# COMMAND_LINE specified below has a reasonable chance of matching unrelated 
+# processes, this script is not a good idea.
+#
+# This does not do any daemonizing; the command being called must do that itself.
+#
+# Extra command line arguments passed to this script are appended to the 
+# COMMAND_LINE when starting; in all other cases they're ignored.  The restart 
+# option is the same as stop && start.
+#
+
+
+#--- config
+
+#Remember to set the description in the comments for chkconfig above, too.
+
+# SERVICE_NAME -- what to call this service
+# This is only used in messages from this script.
+SERVICE_NAME=$(basename "$0")
+
+# COMMAND_LINE -- what to run
+# The command used to invoke the service, including hardcoded options/arguments 
+# (others may be appended when start is called).  Shell metacharacters like `&' cannot be used here.  This is used as the search 
+# string for finding processes to stop, determining status, etc. (see above 
+# notes; hint: if the program is a script, prepend the interpreter program to 
+# this COMMAND_LINE, since that'll make searches less likely to match other 
+# programs (like editors with the script open)).
+COMMAND_LINE="python /sbin/slurmmond --daemon"
+
+# SHOULD_RUN_AS -- enforce this script be run by a specific user
+# If not blank, makes sure that start and stop run as the specified user (this 
+# does not su or sudo to that user, just checks the current user; see SUDO_TO for that).
+# If SUDO_TO is not used, it can also help for process selection (status and stop) in the same way SUDO_TO helps.
+SHOULD_RUN_AS='root'
+
+# SUDO_TO -- run COMMAND_LINE as a specific user
+# If not blank, sudo the COMMAND_LINE as this user.  It also helps for process 
+# selection (status and stop), as the search will be limited to processes owned 
+# by the specified user.
+SUDO_TO='slurmmon'
+
+
+#--- helpers
+
+enforce_user () {
+	if [ "$(id -un)" != "$SHOULD_RUN_AS" ]; then
+		echo "*** ERROR *** $SERVICE_NAME: this service can only be controlled by [$SHOULD_RUN_AS]" >&2
+		exit 1
+	fi
+}
+
+pids () {
+	if [ -n "$SUDO_TO" ]; then
+		psargs="-u $SUDO_TO"
+	elif [ -n "$SHOULD_RUN_AS" ]; then
+		psargs="-u $SHOULD_RUN_AS"
+	else
+		psargs='ax'
+	fi
+	while read pid; do
+		test -d /proc/"$pid" && test $(ps -o state= -p "$pid") != Z && echo $pid
+	done < <(ps $psargs -o 'pid command' | grep -F "$COMMAND_LINE" | grep -vP '^\s*\d+ grep\b' | awk '{print $1}')
+}
+
+alive () {
+	test "$(pids | wc -l)" -gt 0
+}
+
+
+#--- main actions
+
+start() {
+	test -n "$SHOULD_RUN_AS" && enforce_user
+
+	if [ $(pids | wc -l) -ne 0 ]; then
+		echo "*** ERROR *** $SERVICE_NAME appears to already be running" >&2
+		exit 1
+	fi
+
+	echo -n "Starting $SERVICE_NAME... "
+	
+	shift
+	if [ -z "$SUDO_TO" ]; then
+		$COMMAND_LINE "$@"
+	else
+		sudo -u "$SUDO_TO" $COMMAND_LINE "$@"
+	fi
+	
+	if (($?)); then
+		echo "*** FAILED ***"
+		exit 1
+	fi
+
+	echo "done."
+}
+
+stop() {
+	test -n "$SHOULD_RUN_AS" && enforce_user
+
+	if [ -n "$SUDO_TO" ]; then
+		killcmd="sudo -u $SUDO_TO kill"
+	else
+		killcmd='kill'
+	fi
+
+	echo -n "Stopping $SERVICE_NAME... "
+
+	if ! alive; then
+		echo "already not running."
+	else
+		test "$(uname)" = Darwin && xargsnrie='' || xargsnrie='-r'
+		pids | xargs $xargsnrie $killcmd 2>/dev/null
+		for t in 0 0.5 1; do
+			sleep $t
+			alive || break
+		done
+		if alive; then
+			pids | xargs $xargsnrie $killcmd -9 2>/dev/null
+			for t in 0 1 2; do
+				sleep $t
+				alive || break
+			done
+			if alive; then
+				echo "*** FAILED ***"
+				exit 1
+			fi
+		fi
+		echo "done."
+	fi
+}
+
+status() {
+	echo -n "$SERVICE_NAME status: "
+
+	numprocs=$(pids | wc -l)
+	[ "$numprocs" -eq 0 ] && echo "stopped" && return 3
+	[ "$numprocs" -eq 1 ] && echo "started" && return 0
+	[ "$numprocs" -gt 1 ] && echo "started, and more than once instance running" && return 4  #stop will kill them all
+}
+
+notsupported() {
+	echo "*** ERROR *** $SERVICE_NAME: operation [$1] not supported"
+}
+
+usage() {
+	echo "Usage: $SERVICE_NAME start|stop|restart|status"  #add to the arguments if supporting more
+}
+
+
+#---
+
+case "$1" in
+	start)
+		start "$@"
+		;;
+	stop)
+		stop
+		;;
+	restart)
+		stop
+		start
+		;;
+	status)
+		set +e
+		status
+		exit $?
+		;;
+	'')
+		usage >&2
+		exit 1
+		;;
+	*)
+		notsupported "$1" >&2
+		usage >&2
+		exit 1
+		;;
+esac

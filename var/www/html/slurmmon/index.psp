@@ -51,7 +51,7 @@ possible['z'] = ('small', 'medium', 'default', 'large', 'xlarge')
 default['z'] = 'default'
 
 current['r'] = inputcheck(form.get('r', default['r']))
-current['z'] = inputcheck(form.get('z', default['r']))
+current['z'] = inputcheck(form.get('z', default['z']))
 current['c'] = config_cluster
 current['h'] = config_host
 

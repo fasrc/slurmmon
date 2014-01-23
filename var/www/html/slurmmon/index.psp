@@ -10,15 +10,15 @@ config = json.load(open(conf,'r'))
 
 #hack for FASRC -- add "?cluster=dev" to the url to see status on the test cluster
 if form.get('cluster', None)=='dev':
-	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
-	config_cluster = 'vm'
-	config_host = 'slurm-test.rc.fas.harvard.edu'
+	ploturl_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
+	ploturl_cluster = 'vm'
+	ploturl_host = 'slurm-test.rc.fas.harvard.edu'
 else:
 	#let these raise KeyError, since they're all required
 	try:
-		config_gmetaurl = config['config_gmetaurl'].encode('utf-8')
-		config_cluster  = config['config_cluster'].encode('utf-8')
-		config_host     = config['config_host'].encode('utf-8')
+		ploturl_gmetaurl = config['ploturl_gmetaurl'].encode('utf-8')
+		ploturl_cluster  = config['ploturl_cluster'].encode('utf-8')
+		ploturl_host     = config['ploturl_host'].encode('utf-8')
 	except KeyError, e:
 		raise Exception("missing configuration from %s: %s" % (conf, e))
 
@@ -40,7 +40,7 @@ def buildoptions(var):
 	return s
 
 def graphurl(name):
-	return '%s/graph.php?g=%s&r=%s&z=%s"' % (config_gmetaurl, name, current['r'], current['z'])
+	return '%s/graph.php?g=%s&r=%s&z=%s"' % (ploturl_gmetaurl, name, current['r'], current['z'])
 	
 
 #--- ganglia web vars
@@ -61,8 +61,8 @@ default['z'] = 'default'
 
 current['r'] = inputcheck(form.get('r', default['r']))
 current['z'] = inputcheck(form.get('z', default['z']))
-current['c'] = config_cluster
-current['h'] = config_host
+current['c'] = ploturl_cluster
+current['h'] = ploturl_host
 
 
 #--- end indent

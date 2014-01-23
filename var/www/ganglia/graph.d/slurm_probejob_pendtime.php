@@ -11,7 +11,7 @@ function graph_slurm_probejob_pendtime ( &$rrdtool_graph ) {
 	
 	//required
 	$rrdtool_graph['title'] = '-- Slurm Time Probe Jobs Spent Pending --';
-	$rrdtool_graph['vertical-label'] = 'jobs';
+	$rrdtool_graph['vertical-label'] = 'seconds';
 	$rrdtool_graph['series'] = $series;
 
 	return $rrdtool_graph;

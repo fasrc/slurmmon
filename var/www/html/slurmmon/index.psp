@@ -4,7 +4,8 @@ import time, re
 
 #--- config
 
-if True:
+#add "?cluster=dev" to the url to see status on the test cluster
+if form.get('cluster', None)=='dev':
 	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
 	config_cluster = 'vm'
 	config_host = 'slurm-test.rc.fas.harvard.edu'
@@ -63,12 +64,23 @@ current['h'] = config_host
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" dir="ltr" lang="en-US">
 <head>
+<title>SLURM dashboard</title>
 </head>
 <body>
 
 
 <p>
 <form method="get">
+
+<%
+if form.get('cluster', None)=='dev':
+	#begin indent
+%>
+	<input type="hidden" name="cluster" value="dev" />
+<%
+#end indent
+%>
+
 <table>
 	<tr>
 		<td>

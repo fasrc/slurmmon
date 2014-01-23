@@ -158,16 +158,16 @@ config = json.load(open(conf,'r'))
 metric_prefix = config.get('metric_prefix', '%s_' % progname)
 
 #partitions to which to send probe jobs
-probejob_partitions = config.get('probejob_partitions', ())
+probejob_partitions = [ x.encode('utf-8') for x in config.get('probejob_partitions', ())]
 
 #probejob sbatch parameters
-probejob_default_J        = config.get('probejob_default_J'       , 'probejob')
+probejob_default_J        = config.get('probejob_default_J'       , 'probejob').encode('utf-8')
 probejob_default_n        = config.get('probejob_default_n'       , 1)
 probejob_default_t        = config.get('probejob_default_t'       , 2)
 probejob_default_mem      = config.get('probejob_default_mem'     , 10)
-probejob_default_o        = config.get('probejob_default_o'       , '/dev/null')
-probejob_default_e        = config.get('probejob_default_e'       , '/dev/null')
-probejob_default_command  = config.get('probejob_default_command' , 'true')
+probejob_default_o        = config.get('probejob_default_o'       , '/dev/null').encode('utf-8')
+probejob_default_e        = config.get('probejob_default_e'       , '/dev/null').encode('utf-8')
+probejob_default_command  = config.get('probejob_default_command' , 'true').encode('utf-8')
 probejob_default_priority = config.get('probejob_default_priority', 999999999)
 
 #metric_interval_*

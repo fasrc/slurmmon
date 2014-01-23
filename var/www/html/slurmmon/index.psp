@@ -16,9 +16,9 @@ if form.get('cluster', None)=='dev':
 else:
 	#let these raise KeyError, since they're all required
 	try:
-		config_gmetaurl = config['config_gmetaurl']
-		config_cluster  = config['config_cluster']
-		config_host     = config['config_host']
+		config_gmetaurl = config['config_gmetaurl'].encode('utf-8')
+		config_cluster  = config['config_cluster'].encode('utf-8')
+		config_host     = config['config_host'].encode('utf-8')
 	except, e:
 		raise Exception("missing configuration from %s: %s" % (conf, e))
 

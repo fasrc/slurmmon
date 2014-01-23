@@ -8,9 +8,9 @@ It can also submit *probe* jobs to various partitions in order to trend the time
 
 There are three components to slurmmon:
 
-* [slurmmon-daemon](slurmmon-daemon-0.0.1-fasrc01.noarch.rpm) -- the daemons that run Slurm commands such as `sdiag`, `squeue`, etc., submit probe jobs (if configured), and send data to ganglia using `gmetric`
-* [slurmmon-ganglia](slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm) -- the ganglia custom reports that use php to stack rrd data (to be dropped in a `graph.d` directory in some ganglia installation)
-* [slurmmon-web](slurmmon-web-0.0.1-fasrc01.noarch.rpm) -- a psp web page that organizes all the reports and relevant plots (which can run on an independent web server)
+* [slurmmon-daemon](slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true) -- the daemons that run Slurm commands such as `sdiag`, `squeue`, etc., submit probe jobs (if configured), and send data to ganglia using `gmetric`
+* [slurmmon-ganglia](slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true) -- the ganglia custom reports that use php to stack rrd data (to be dropped in a `graph.d` directory in some ganglia installation)
+* [slurmmon-web](slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true) -- a psp web page that organizes all the reports and relevant plots (which can run on an independent web server)
 
 Here is a screenshot from the production cluster at FASRC:
 
@@ -41,6 +41,7 @@ slurmmon HOSTNAME=(slurm) NOPASSWD: /usr/bin/scontrol update JobId\=* Priority\=
 
 where `HOSTNAME` is the node where you're running the daemons.
 (Note that the `*` in the about could match multiple words, it's not perfect.)
+If you're not running probe jobs, you don't need the sudo config.
 
 
 ### Install the RPMs
@@ -50,7 +51,7 @@ where `HOSTNAME` is the node where you're running the daemons.
 Identify a Slurm client host on which to run the daemons that query slurm.
 This host should also be in ganglia (`gmetric` needs to work), and it should be same host where the `slurmmon` user can run sudo to change job priorities.
 
-Install <slurmmon-daemon-0.0.1-fasrc01.noarch.rpm>.
+Install [slurmmon-daemon-0.0.1-fasrc01.noarch.rpm](slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true).
 
 Configure it by editing `/etc/slurmmon.conf`, which is json.
 Specifically, set `probejob_partitions` to be the set of names of partitions to which you want to send probe jobs.
@@ -74,18 +75,18 @@ chkconfig slurmmond on
 Identify a host running `ganglia-web`, and a `graph.d` directory into which to put the slurmmon custom reports.
 By default the rpm will use `/var/www/ganglia/graph.d`, but this is an available *Relocation* in the rpm.
 
-Install <slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm>, possibly using `--prefix` to put the files in a custom location.
+Install [slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm](slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
 
 
 #### slurmmon-web
 
 Identify a host running httpd and mod_python.
-The package by default installs files to `/etc/httpd/conf.d` and `/var/www/html/slurmmon`, but these are available *Relocation*s in the rpm.
+By default, the package installs files to `/etc/httpd/conf.d` and `/var/www/html/slurmmon`, but these are available *Relocation*s in the rpm.
 
-Install <slurmmon-web-0.0.1-fasrc01.noarch.rpm>, possible using `--prefix` to put the files in custom locations.
+Install [slurmmon-web-0.0.1-fasrc01.noarch.rpm](slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true), possible using `--prefix` to put the files in custom locations.
 
 Configure it by editing `/etc/slurmmon.conf`, which is json.
-Specifically, set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to build a url to reach the ganglia plots. 
+Specifically, set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to construct a url to reach the ganglia plots. 
 
 Reload the web server config:
 
@@ -103,7 +104,7 @@ The probe jobs are meant to represent what a brand new user running a tiny test 
 The default parameters define a very short, small job (two minutes and 10 MB at the time of writing).
 The code also raises the priority of these jobs so that there is no hit to fairshare due to the constant probe submissions.
 
-### Why are the monitoring daemons processes piling up?
+### Why are the monitoring daemon processes piling up?
 
 They're not really (usually).
 The "daemon" is actually several processes (four at the time of writing), running in parallel using python's `multiprocessing` feature, so they have the same command line.

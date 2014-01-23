@@ -19,7 +19,7 @@ else:
 		config_gmetaurl = config['config_gmetaurl'].encode('utf-8')
 		config_cluster  = config['config_cluster'].encode('utf-8')
 		config_host     = config['config_host'].encode('utf-8')
-	except, e:
+	except KeyError, e:
 		raise Exception("missing configuration from %s: %s" % (conf, e))
 
 

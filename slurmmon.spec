@@ -69,6 +69,8 @@ done
 %defattr(-,root,root,-)
 /etc/init.d/slurmmond
 /usr/sbin/slurmmond
+%config(noreplace)
+/etc/slurmmon.conf
 
 %files ganglia
 %defattr(-,apache,apache,-)
@@ -78,3 +80,5 @@ done
 %defattr(-,root,root,-)
 /etc/httpd/conf.d/slurmmon.conf
 /var/www/html/slurmmon/index.psp
+%config(noreplace)
+/etc/slurmmon.conf

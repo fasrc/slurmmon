@@ -71,7 +71,7 @@ done
 /usr/sbin/slurmmond
 
 %files ganglia
-%defattr(-,root,root,-)
+%defattr(-,apache,apache,-)
 /var/www/ganglia/graph.d/*
 
 %files web

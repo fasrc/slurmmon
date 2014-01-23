@@ -19,7 +19,7 @@ It includes utilities to make various other plots, too.
 Summary: slurmmon daemon that collects data
 Group: System Environment/Base
 Prefix: /etc
-Prefix: /sbin
+Prefix: /usr
 %description daemon
 slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
 It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
@@ -37,7 +37,7 @@ It includes utilities to make various other plots, too.
 This subpackage installs the slurmmon ganglia reports.
 
 %package web
-Summary: slurmmon web summary pages
+Summary: slurmmon summary web pages
 Group: System Environment/Base
 Prefix: /etc/httpd/conf.d
 Prefix: /var/www/html/slurmmon
@@ -60,18 +60,21 @@ This subpackages installs the slurmmon summary web pages.
 
 echo %{buildroot} | grep -q %{name}-%{version} && rm -rf %{buildroot}
 mkdir -p %{buildroot}/
-for d in etc sbin var; do
+for d in etc usr var; do
 	rsync -av "$d"/ %{buildroot}/"$d"/
 done
 
 
 %files daemon
+%defattr(-,root,root,-)
 /etc/init.d/slurmmond
-/sbin/slurmmond
+/usr/sbin/slurmmond
 
 %files ganglia
+%defattr(-,root,root,-)
 /var/www/ganglia/graph.d/*
 
 %files web
+%defattr(-,root,root,-)
 /etc/httpd/conf.d/slurmmon.conf
 /var/www/html/slurmmon/index.psp

@@ -41,7 +41,12 @@ SERVICE_NAME=$(basename "$0")
 # script, prepend the interpreter program to this COMMAND_LINE, since that'll 
 # make searches less likely to match other programs (like editors with the 
 # script open)).
-COMMAND_LINE="python /sbin/slurmmond --daemon"
+prog="$(which slurmmond 2>/dev/null)"
+if [ -z "$prog" ]; then
+	echo "*** ERROR *** slurmmond command not found" >&2
+	exit 1
+fi
+COMMAND_LINE="python $prog --daemon"
 
 # SHOULD_RUN_AS -- enforce this script be run by a specific user
 # If not blank, makes sure that start and stop run as the specified user (this 

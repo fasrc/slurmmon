@@ -6,14 +6,18 @@
 
 """\
 NAME
-	slurmmond - gather data about SLURM behavior
+	slurmmond - gather data about SLURM
 
 SYNOPSIS
 	slurmmond
 
 DESCRIPTION
-	This runs several child processes that loop reporting back to the parent various metrics.
-	The master process sends these to ganglia by running gmetric.
+	This runs several child processes that loop reporting back to the parent 
+	various metrics.  The master process sends these to ganglia by running 
+	gmetric.
+
+	Note that this uses python multiprocessing, so it's normal to see several 
+	instances of the process in the process table.
 
 OPTIONS
 	--daemon
@@ -21,13 +25,13 @@ OPTIONS
 
 	-v, --verbose
 		Write metrics to stdout, too (as gmetric commands).
-	
+
 	-d, --debug
 		Log extra debugging information.
-	
+
 	-p, --pretend
 		Don't actually send gmetrics.
-	
+
 	--log-to-stderr
 		Log messages to stderr in addition to syslog.
 
@@ -54,67 +58,49 @@ architecture
 metrics (subject to change)
 	#--jobcount
 
-#	slurmmond_jobcount_total_pending.rrd (jobs)
-#	slurmmond_jobcount_total_running.rrd (jobs)
-#	slurmmond_jobcount_max_pending_one_user.rrd (jobs)
-#	slurmmond_jobcount_max_running_one_user.rrd (jobs)
+	slurmmond_jobcount_total_pending.rrd (jobs)
+	slurmmond_jobcount_total_running.rrd (jobs)
+	slurmmond_jobcount_max_pending_one_user.rrd (jobs)
+	slurmmond_jobcount_max_running_one_user.rrd (jobs)
 
 
 	#--- probejob
 
-#	slurmmond_probejob_pendtime_general.rrd (seconds)
-#	slurmmond_probejob_pendtime_interact.rrd (seconds)
+	slurmmond_probejob_pendtime_general.rrd (seconds)
+	slurmmond_probejob_pendtime_interact.rrd (seconds)
 
 
 	#--- sdiag
 
-#	slurmmond_sdiag_server_thread_count.rrd (threads)
-#	slurmmond_sdiag_agent_queue_size.rrd (agents)
+	slurmmond_sdiag_server_thread_count.rrd (threads)
+	slurmmond_sdiag_agent_queue_size.rrd (agents)
 
-#	slurmmond_sdiag_jobs_submitted.rrd (jobs)
-#	slurmmond_sdiag_jobs_started.rrd (jobs)
-#	slurmmond_sdiag_jobs_completed.rrd (jobs)
-#	slurmmond_sdiag_jobs_canceled.rrd (jobs)
-#	slurmmond_sdiag_jobs_failed.rrd (jobs)
+	slurmmond_sdiag_jobs_submitted.rrd (jobs)
+	slurmmond_sdiag_jobs_started.rrd (jobs)
+	slurmmond_sdiag_jobs_completed.rrd (jobs)
+	slurmmond_sdiag_jobs_canceled.rrd (jobs)
+	slurmmond_sdiag_jobs_failed.rrd (jobs)
 
-#	slurmmond_sdiag_main_last_cycle.rrd (microseconds)
-#	slurmmond_sdiag_main_max_cycle.rrd (microseconds)
-#	slurmmond_sdiag_main_total_cycles.rrd (cycles)
-#	slurmmond_sdiag_main_mean_cycle.rrd (microseconds)
-#	slurmmond_sdiag_main_mean_depth_cycle.rrd (jobs)
-#	slurmmond_sdiag_main_cycles_per_minute.rrd (cycles/min)
-#	slurmmond_sdiag_main_last_queue_length.rrd (jobs)
+	slurmmond_sdiag_main_last_cycle.rrd (microseconds)
+	slurmmond_sdiag_main_max_cycle.rrd (microseconds)
+	slurmmond_sdiag_main_total_cycles.rrd (cycles)
+	slurmmond_sdiag_main_mean_cycle.rrd (microseconds)
+	slurmmond_sdiag_main_mean_depth_cycle.rrd (jobs)
+	slurmmond_sdiag_main_cycles_per_minute.rrd (cycles/min)
+	slurmmond_sdiag_main_last_queue_length.rrd (jobs)
 
-#	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_slurm_start.rrd (jobs)
-#	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_stats_cycle_start.rrd (jobs)
-#	slurmmond_sdiag_backfill_total_cycles.rrd (cycles)
-#	slurmmond_sdiag_backfill_last_cycle.rrd (microseconds)
-#	slurmmond_sdiag_backfill_max_cycle.rrd (microseconds)
-#	slurmmond_sdiag_backfill_mean_cycle.rrd (microseconds)
-#	slurmmond_sdiag_backfill_last_depth_cycle.rrd (jobs)
-#	slurmmond_sdiag_backfill_last_depth_cycle_try_sched.rrd (jobs)
-#	slurmmond_sdiag_backfill_depth_mean.rrd (jobs)
-#	slurmmond_sdiag_backfill_depth_mean_try_depth.rrd (jobs)
-#	slurmmond_sdiag_backfill_last_queue_length.rrd (jobs)
-#	slurmmond_sdiag_backfill_queue_length_mean.rrd (jobs)
-
-
-	#--- EXPIRE (missing sched type)
-
-	slurmmond_sdiag_max_cycle.rrd
-	slurmmond_sdiag_mean_cycle.rrd
-	slurmmond_sdiag_mean_depth_cycle.rrd
-	slurmmond_sdiag_queue_length_mean.rrd
-	slurmmond_sdiag_total_backfilled_jobs_since_last_slurm_start.rrd
-	slurmmond_sdiag_total_backfilled_jobs_since_last_stats_cycle_start.rrd
-	slurmmond_sdiag_total_cycles.rrd
-	slurmmond_sdiag_cycles_per_minute.rrd
-	slurmmond_sdiag_depth_mean.rrd
-	slurmmond_sdiag_depth_mean_try_depth.rrd
-	slurmmond_sdiag_last_cycle.rrd
-	slurmmond_sdiag_last_depth_cycle.rrd
-	slurmmond_sdiag_last_depth_cycle_try_sched.rrd
-	slurmmond_sdiag_last_queue_length.rrd
+	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_slurm_start.rrd (jobs)
+	slurmmond_sdiag_backfill_total_backfilled_jobs_since_last_stats_cycle_start.rrd (jobs)
+	slurmmond_sdiag_backfill_total_cycles.rrd (cycles)
+	slurmmond_sdiag_backfill_last_cycle.rrd (microseconds)
+	slurmmond_sdiag_backfill_max_cycle.rrd (microseconds)
+	slurmmond_sdiag_backfill_mean_cycle.rrd (microseconds)
+	slurmmond_sdiag_backfill_last_depth_cycle.rrd (jobs)
+	slurmmond_sdiag_backfill_last_depth_cycle_try_sched.rrd (jobs)
+	slurmmond_sdiag_backfill_depth_mean.rrd (jobs)
+	slurmmond_sdiag_backfill_depth_mean_try_depth.rrd (jobs)
+	slurmmond_sdiag_backfill_last_queue_length.rrd (jobs)
+	slurmmond_sdiag_backfill_queue_length_mean.rrd (jobs)
 """
 
 import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing
@@ -134,7 +120,7 @@ except getopt.GetoptError, e:
 for opt, optarg in opts:
 	if opt in ('--daemon',):
 		daemon = True
-	
+
 	elif opt in ('-v', '--verbose'):
 		verbose = True
 	elif opt in ('-d', '--debug'):
@@ -206,7 +192,7 @@ def shQuote(text):
 
 def daemonize(chdir='/'):
 	"""Daemonize using the standard setsid/fork method.
-	
+
 	The continues execution in a daemon process, i.e. a process that:
 	1) is adopted by init
 	2) has no controlling terminal
@@ -216,23 +202,23 @@ def daemonize(chdir='/'):
 
 	This only redirects i/o to/from the given stdin/stdout/stderr if those respecitive streams are ttys, otherwise it leaves them alone.
 	"""
-	
+
 	#just to be safe, so buffered output is not double written by both parent and child
 	#note that parents are already using os._exit() below, which doesn't flush buffers, instead of sys.exit()
 	for f in sys.stdout, sys.stderr: f.flush()
-	
+
 	#if this is a process group leader it cannot call setsid; fork and continue in the child (which won't be a process group leader)
 	if os.getpid()==os.getpgid(0):
 		pid = os.fork()
 		if pid>0: os._exit(0)
-	
+
 	#get rid of the controlling terminal and put this in a new session and process group
 	os.setsid()
-	
+
 	#fork, to make sure no parent hangs waiting (possibly already taken care of by the fork above), and to make the new session and new process group have no leaders
 	pid = os.fork()
 	if pid>0: os._exit(0)
-	
+
 	#don't leave open anything from the calling environment
 	os.chdir(chdir)
 	#os.umask(0)
@@ -305,9 +291,9 @@ def metrics_sdiag():
 	#		Depth Mean (try depth): 0
 	#		Last queue length: 190
 	#		Queue length mean: 185
-	
+
 	sched = None  #main or backfill
-	
+
 	for line in stdout.strip().split('\n'):
 		line = line.strip()
 
@@ -405,19 +391,19 @@ def metrics_probejob(
 		('-o', o),
 		('-e', e),
 	)
-	
+
 	sh = 'sbatch'
 	for x in optargs:
 		sh += ' %s %s' % (shQuote(x[0]), shQuote(str(x[1])))
 	sh += ' --wrap %s' % shQuote(command)
 
-	
+
 	#--- submit job
-	
+
 	if debug:
 		log("DEBUG: submitting probejob with [%r]" % sh)
 	#(how long this takes is not of interest, as it won't take longer than the short MessageTimeout, and hitting that causes an exception below)
-	
+
 	if fake_probejob:
 		stdout, stderr = 'Submitted batch job 1234', ''
 	else:
@@ -425,7 +411,7 @@ def metrics_probejob(
 		stdout, stderr = [ x.strip() for x in p.communicate()]
 		if p.returncode!=0 or stderr!='':
 			raise Exception("job submission [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
-	
+
 	#note the time we submitted so that we can compute how long it ends up pending
 	t_submit = time.time()
 
@@ -434,17 +420,17 @@ def metrics_probejob(
 		jobid = int(stdout.rsplit(' ',1)[1])
 	except (ValueError, IndexError):
 		raise Exception("unable to parse jobid from [%r]" % stdout)
-	
+
 	if debug:
 		log("submitted probejob, assigned jobid [%d]" % jobid)
-	
+
 
 	#--- update its priority
 
 	sh = "sudo -u slurm scontrol update JobId=%s Priority=%s" % (shQuote(str(jobid)), shQuote(str(priority)))
 	if debug:
 		log("DEBUG: updating probejob priority with [%r]" % sh)
-	
+
 	if fake_probejob:
 		stdout, stderr = '', ''
 	else:
@@ -585,13 +571,13 @@ if __name__=='__main__':
 	#--- startup
 
 	log("starting")
-	
+
 	#sdiag metrics
 	p = multiprocessing.Process(target=lambda:child('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
 	p.start()
 	log("started sdiag metrics process, pid [%d]" % p.pid)
 	children.append(p)
-	
+
 	#jobcount metrics
 	p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
 	p.start()
@@ -627,7 +613,7 @@ if __name__=='__main__':
 
 
 	#--- run
-	
+
 	while True:
 		m = metricq.get()
 		

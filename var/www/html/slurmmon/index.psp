@@ -1,18 +1,26 @@
 <%
-import time, re
+import time, re, json
+
+conf = '/etc/slurmmon.conf'
 
 
 #--- config
 
-#add "?cluster=dev" to the url to see status on the test cluster
+config = json.load(open(conf,'r'))
+
+#hack for FASRC -- add "?cluster=dev" to the url to see status on the test cluster
 if form.get('cluster', None)=='dev':
 	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
 	config_cluster = 'vm'
 	config_host = 'slurm-test.rc.fas.harvard.edu'
 else:
-	config_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/holyoke_other'
-	config_cluster = 'holyoke_service'
-	config_host = 'holy-slurm01.rc.fas.harvard.edu'
+	#let these raise KeyError, since they're all required
+	try:
+		config_gmetaurl = config['config_gmetaurl']
+		config_cluster  = config['config_cluster']
+		config_host     = config['config_host']
+	except, e:
+		raise Exception("missing configuration from %s: %s" % (conf, e))
 
 
 #--- helpers

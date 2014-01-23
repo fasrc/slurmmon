@@ -23,6 +23,9 @@ OPTIONS
 	--daemon
 		Run as a daemon instead of in the foreground as a child of the calling process.
 
+	--conf CONFIGURATION_FILE
+		Use the given configuration file instead of /etc/slurmmon.conf.
+
 	-v, --verbose
 		Write metrics to stdout, too (as gmetric commands).
 
@@ -66,8 +69,7 @@ metrics (subject to change)
 
 	#--- probejob
 
-	slurmmond_probejob_pendtime_general.rrd (seconds)
-	slurmmond_probejob_pendtime_interact.rrd (seconds)
+	slurmmond_probejob_pendtime_PARTITION.rrd (seconds), for each PARTITION
 
 
 	#--- sdiag
@@ -103,9 +105,10 @@ metrics (subject to change)
 	slurmmond_sdiag_backfill_queue_length_mean.rrd (jobs)
 """
 
-import sys, os, traceback, time, re, getopt, syslog, signal, subprocess, multiprocessing
+import sys, os, traceback, time, re, getopt, syslog, signal, json, subprocess, multiprocessing
 
 daemon = False
+conf = '/etc/slurmmon.conf'
 verbose = False
 debug = False
 pretend = False
@@ -113,13 +116,15 @@ log_to_stderr = False
 fake_probejob = False
 
 try:
-	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('daemon', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('daemon', 'conf=', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
 except getopt.GetoptError, e:
 	sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
 	sys.exit(1)
 for opt, optarg in opts:
 	if opt in ('--daemon',):
 		daemon = True
+	if opt in ('--conf',):
+		conf = optarg
 
 	elif opt in ('-v', '--verbose'):
 		verbose = True
@@ -147,35 +152,37 @@ if log_to_stderr:
 
 #--- config
 
-#though many of these have "default" in the name, there is no way of changing them
+config = json.load(open(conf,'r'))
 
-metric_prefix = '%s_' % progname
+#basic stuff
+metric_prefix = config.get('metric_prefix', '%s_' % progname)
+
+#partitions to which to send probe jobs
+probejob_partitions = config.get('probejob_partitions', ())
 
 #probejob sbatch parameters
-probejob_default_J = 'probejob'
-probejob_default_n = 1
-probejob_default_t = 2
-probejob_default_mem = 10
-probejob_default_o = '/dev/null'
-probejob_default_e = '/dev/null'
-probejob_default_command = 'true'
-probejob_default_priority = 999999999
+probejob_default_J        = config.get('probejob_default_J'       , 'probejob')
+probejob_default_n        = config.get('probejob_default_n'       , 1)
+probejob_default_t        = config.get('probejob_default_t'       , 2)
+probejob_default_mem      = config.get('probejob_default_mem'     , 10)
+probejob_default_o        = config.get('probejob_default_o'       , '/dev/null')
+probejob_default_e        = config.get('probejob_default_e'       , '/dev/null')
+probejob_default_command  = config.get('probejob_default_command' , 'true')
+probejob_default_priority = config.get('probejob_default_priority', 999999999)
 
 #metric_interval_*
 #the time to sleep between metric collection runs
-metric_interval_sdiag = 120
-metric_interval_jobcount = 120
-metric_interval_probejob = 120
+metric_interval_sdiag    = config.get('metric_interval_sdiag'   , 120)
+metric_interval_jobcount = config.get('metric_interval_jobcount', 120)
+metric_interval_probejob = config.get('metric_interval_probejob', 120)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
-metric_fail_retry_interval = 120
+metric_fail_retry_interval = config.get('metric_fail_retry_interval', 120)
 
 #probejob_query_interval:
 #the time to wait between pokes to slurm to see if the probe job is no longer pending
-probejob_query_interval = 10
-
-
+probejob_query_interval = config.get('probejob_query_interval', 10)
 
 
 #--- helpers
@@ -200,7 +207,7 @@ def daemonize(chdir='/'):
 	4) is in a process group with no process group leader
 	5) has no files from the calling environment left open
 
-	This only redirects i/o to/from the given stdin/stdout/stderr if those respecitive streams are ttys, otherwise it leaves them alone.
+	This only redirects i/o to/from the given stdin/stdout/stderr if those respective streams are ttys, otherwise it leaves them alone.
 	"""
 
 	#just to be safe, so buffered output is not double written by both parent and child
@@ -585,7 +592,7 @@ if __name__=='__main__':
 	children.append(p)
 
 	#probejob metrics
-	for partition in ('interact', 'general'):
+	for partition in probejob_partitions:
 		name = 'probejob-%s' % partition
 		p = multiprocessing.Process(target=lambda:child(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
 		p.start()

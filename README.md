@@ -94,6 +94,8 @@ Reload the web server config:
 service httpd reload
 ```
 
+You should now see plots at `http://HOSTNAME/slurmmon/` where `HOSTNAME` is this host.
+
 
 
 ## FAQ

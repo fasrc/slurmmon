@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# Copyright (c) 2013-2014
+# Harvard FAS Research Computing
+# All rights reserved.
+
 """\
 NAME
 	slurmmond - gather data about SLURM behavior

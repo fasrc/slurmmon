@@ -3,6 +3,11 @@
 # chkconfig: 345 90 10
 # description: slurmmond - gather data about SLURM behavior
 #
+# Copyright (c) 2013-2014
+# Harvard FAS Research Computing
+# All rights reserved.
+#
+#
 # This is a simple distro-agnostic init script supporting start, stop, restart, 
 # and status.
 # 

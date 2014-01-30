@@ -240,6 +240,19 @@ def daemonize(chdir='/'):
 		se = file('/dev/null', 'a+', 0)
 		os.dup2(se.fileno(), sys.stderr.fileno())
 
+def run_command(command, shell=False):
+	p = subprocess.Popen(command, shell=shell,
+		stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	stdout, stderr = [data.strip() for data in p.communicate()]
+	if p.returncode != 0 or stderr != '':
+		raise Exception("'%s' failed with " +
+			'non-zero returncode [%d] and/or non-empty stderr [%r]' % (
+			' '.join(command), p.returncode, stderr,
+		))
+
+	return stdout
+
 
 
 #--- misc
@@ -255,12 +268,7 @@ re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
 def metrics_sdiag():
 	global progname
 
-	sh = 'sdiag'
-	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	stdout, stderr = [ x.strip() for x in p.communicate()]
-	if p.returncode!=0 or stderr!='':
-		raise Exception("sdiag failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
-
+	stdout = run_command(['sdiag'])
 	##e.g.
 	#*******************************************************
 	#sdiag output at Mon Dec  9 16:45:13 2013
@@ -357,12 +365,9 @@ def metrics_jobcount():
 		('%sjobcount_max_pending_one_user' % metric_prefix, "squeue -h -o '%u' -t PD | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 		('%sjobcount_max_running_one_user' % metric_prefix, "squeue -h -o '%u' -t R  | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 	):
-		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-		stdout, stderr = [ x.strip() for x in p.communicate()]
-		if p.returncode!=0 or stderr!='':
-			raise Exception("squeue command [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
-
-		if stdout=='': stdout = '0'
+		stdout = run_command(sh, shell=True)
+		if stdout == '':
+			stdout = '0'
 		
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		yield (name, stdout, 'uint32', 'jobs', progname, name, name)
@@ -622,28 +627,25 @@ if __name__=='__main__':
 	#--- run
 
 	while True:
+		# (NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		m = metricq.get()
 		
-		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		if debug:
 			msg = "DEBUG: "
 			if pretend:
 				msg += "PRETEND: "
 			msg += "sending metric [%s]" % str(m)
 			log(msg)
-		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s --tmax 86400' % (  #FIXME proper --tmax
-			shQuote(str(m[0])),
-			shQuote(str(m[1])),
-			shQuote(str(m[2])),
-			shQuote(str(m[3])),
-			shQuote(str(m[4])),
-			shQuote(str(m[5])),
-			shQuote(str(m[6])),
-		)
+		command = [
+			'gmetric',
+			'--name', str(m[0]), '--value', str(m[1]),
+			'--type', str(m[2]), '--units', str(m[3]),
+			'--group', str(m[4]), '--title', str(m[5]),
+			'--desc', str(m[6]),
+			# FIXME: proper --tmax
+			'--tmax', '86400'
+		]
 		if verbose:
-			print sh
+			print ' '.join(command)
 		if not pretend:
-			p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-			stdout, stderr = [ x.strip() for x in p.communicate()]
-			if p.returncode!=0 or stderr!='':
-				log("WARNING: gmetric [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+			run_command(command)

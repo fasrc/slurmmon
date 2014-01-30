@@ -139,10 +139,10 @@ for opt, optarg in opts:
 		sys.stdout.write(__doc__)
 		sys.exit(0)
 
-progname = os.path.basename(__file__)
-logoption = syslog.LOG_PID
+PROGNAME = os.path.basename(__file__)
+LOGOPTIONS = syslog.LOG_PID
 if log_to_stderr:
-	logoption |= syslog.LOG_PERROR
+	LOGOPTIONS |= syslog.LOG_PERROR
 
 
 
@@ -155,7 +155,7 @@ if log_to_stderr:
 config = json.load(open(conf,'r'))
 
 #basic stuff
-metric_prefix = config.get('metric_prefix', '%s_' % progname)
+metric_prefix = config.get('metric_prefix', '%s_' % PROGNAME)
 
 #partitions to which to send probe jobs
 probejob_partitions = [ x.encode('utf-8') for x in config.get('probejob_partitions', ())]
@@ -267,8 +267,6 @@ re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
 #these yield tuples representing metrics, and they do not loop
 
 def metrics_sdiag():
-	global progname
-
 	stdout = run_command(['sdiag'])
 	##e.g.
 	#*******************************************************
@@ -352,14 +350,12 @@ def metrics_sdiag():
 			name = '%ssdiag_%s' % (metric_prefix, name)
 			
 			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
-			yield (name, value, 'int32', units, progname, name, name)
+			yield (name, value, 'int32', units, PROGNAME, name, name)
 		except ValueError:
 			#e.g. dates
 			pass
 
 def metrics_jobcount():
-	global progname
-
 	for name, sh in (
 		('%sjobcount_total_pending'        % metric_prefix, "squeue -h -o '%u' -t PD | wc -l"),
 		('%sjobcount_total_running'        % metric_prefix, "squeue -h -o '%u' -t R  | wc -l"),
@@ -371,11 +367,9 @@ def metrics_jobcount():
 			stdout = '0'
 		
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
-		yield (name, stdout, 'uint32', 'jobs', progname, name, name)
+		yield (name, stdout, 'uint32', 'jobs', PROGNAME, name, name)
 
 def metrics_reservations():
-	global progname
-
 	stdout = run_command(['scontrol', 'show', 'reservations', '-o'])
 
 	reserved_cores = 0
@@ -393,7 +387,7 @@ def metrics_reservations():
 
 	name = '%scores_in_reservations' % metric_prefix
 	yield (name, reserved_cores, 'int32', 'CPU cores',
-		progname, name, name)
+		PROGNAME, name, name)
 
 def metrics_probejob(
 	partition,
@@ -406,9 +400,6 @@ def metrics_probejob(
 	command=probejob_default_command,
 	priority=probejob_default_priority,
 	):
-
-	global progname
-
 
 	#--- internal state
 
@@ -541,7 +532,7 @@ def metrics_probejob(
 
 	#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 	s = 'pend time for a job in %s' % partition
-	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', progname, s, s)
+	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', PROGNAME, s, s)
 
 
 
@@ -555,11 +546,9 @@ def child(name, metricq, metricf, loopsleep):
 	loopsleep -- interval to sleep betwen runs
 	"""
 
-	global progname
-	global logoption
-	name = '%s(%s)' % (progname, name)
+	name = '%s(%s)' % (PROGNAME, name)
 	syslog.closelog()
-	syslog.openlog(name, logoption)
+	syslog.openlog(name, LOGOPTIONS)
 
 	try:
 		while True:
@@ -596,7 +585,7 @@ if __name__=='__main__':
 	if daemon:
 		daemonize()
 
-	syslog.openlog(progname, logoption)
+	syslog.openlog(PROGNAME, LOGOPTIONS)
 
 	metricq = multiprocessing.Queue()
 

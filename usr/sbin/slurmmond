@@ -172,9 +172,10 @@ probejob_default_priority = config.get('probejob_default_priority', 999999999)
 
 #metric_interval_*
 #the time to sleep between metric collection runs
-metric_interval_sdiag    = config.get('metric_interval_sdiag'   , 120)
-metric_interval_jobcount = config.get('metric_interval_jobcount', 120)
-metric_interval_probejob = config.get('metric_interval_probejob', 120)
+metric_interval_sdiag        = config.get('metric_interval_sdiag'   ,     120)
+metric_interval_jobcount     = config.get('metric_interval_jobcount',     120)
+metric_interval_reservations = config.get('metric_interval_reservations', 120)
+metric_interval_probejob     = config.get('metric_interval_probejob',     120)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
@@ -371,6 +372,28 @@ def metrics_jobcount():
 		
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		yield (name, stdout, 'uint32', 'jobs', progname, name, name)
+
+def metrics_reservations():
+	global progname
+
+	stdout = run_command(['scontrol', 'show', 'reservations', '-o'])
+
+	reserved_cores = 0
+	if 'No reservations in the system' in stdout:
+		# Fall through and return 0 reserved cores.
+		pass
+	else:
+		for line in stdout.split('\n'):
+			reservation = {}
+			for item in re.split(r'\s+', line):
+				field, value = item.split('=')
+				reservation[field] = value
+
+			reserved_cores += int(reservation['CoreCnt'])
+
+	name = '%scores_in_reservations' % metric_prefix
+	yield (name, reserved_cores, 'int32', 'CPU cores',
+		progname, name, name)
 
 def metrics_probejob(
 	partition,
@@ -594,6 +617,13 @@ if __name__=='__main__':
 	p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
 	p.start()
 	log("started jobcount metrics process, pid [%d]" % p.pid)
+	children.append(p)
+
+	#number of reserved cores
+	p = multiprocessing.Process(target=lambda: child('reservations',
+		metricq, lambda: metrics_reservations(), metric_interval_reservations))
+	p.start()
+	log("started reserved cores metrics process, pid [%d]" % p.pid)
 	children.append(p)
 
 	#probejob metrics

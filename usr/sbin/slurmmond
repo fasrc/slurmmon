@@ -12,11 +12,11 @@ SYNOPSIS
 	slurmmond
 
 DESCRIPTION
-	This runs several child processes that loop reporting back to the parent 
-	various metrics.  The master process sends these to ganglia by running 
+	This runs several child processes that loop reporting back to the parent
+	various metrics.  The master process sends these to ganglia by running
 	gmetric.
 
-	Note that this uses python multiprocessing, so it's normal to see several 
+	Note that this uses python multiprocessing, so it's normal to see several
 	instances of the process in the process table.
 
 OPTIONS
@@ -118,14 +118,13 @@ fake_probejob = False
 try:
 	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('daemon', 'conf=', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
 except getopt.GetoptError, e:
-	sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
+	sys.stderr.write('*** ERROR **** unable to process command line options: %s\n' % e)
 	sys.exit(1)
 for opt, optarg in opts:
 	if opt in ('--daemon',):
 		daemon = True
 	if opt in ('--conf',):
 		conf = optarg
-
 	elif opt in ('-v', '--verbose'):
 		verbose = True
 	elif opt in ('-d', '--debug'):
@@ -134,15 +133,14 @@ for opt, optarg in opts:
 		pretend = True
 	elif opt in ('--log-to-stderr',):
 		log_to_stderr = True
-
 	elif opt in ('-h', '--help'):
 		sys.stdout.write(__doc__)
 		sys.exit(0)
 
-progname = os.path.basename(__file__)
-logoption = syslog.LOG_PID
+PROGNAME = os.path.basename(__file__)
+LOGOPTIONS = syslog.LOG_PID
 if log_to_stderr:
-	logoption |= syslog.LOG_PERROR
+	LOGOPTIONS |= syslog.LOG_PERROR
 
 
 
@@ -152,10 +150,10 @@ if log_to_stderr:
 
 #--- config
 
-config = json.load(open(conf,'r'))
+config = json.load(open(conf, 'r'))
 
 #basic stuff
-metric_prefix = config.get('metric_prefix', '%s_' % progname)
+metric_prefix = config.get('metric_prefix', '%s_' % PROGNAME)
 
 #partitions to which to send probe jobs
 probejob_partitions = [ x.encode('utf-8') for x in config.get('probejob_partitions', ())]
@@ -172,9 +170,10 @@ probejob_default_priority = config.get('probejob_default_priority', 999999999)
 
 #metric_interval_*
 #the time to sleep between metric collection runs
-metric_interval_sdiag    = config.get('metric_interval_sdiag'   , 120)
-metric_interval_jobcount = config.get('metric_interval_jobcount', 120)
-metric_interval_probejob = config.get('metric_interval_probejob', 120)
+metric_interval_sdiag        = config.get('metric_interval_sdiag'   ,     120)
+metric_interval_jobcount     = config.get('metric_interval_jobcount',     120)
+metric_interval_reservations = config.get('metric_interval_reservations', 120)
+metric_interval_probejob     = config.get('metric_interval_probejob',     120)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
@@ -240,6 +239,19 @@ def daemonize(chdir='/'):
 		se = file('/dev/null', 'a+', 0)
 		os.dup2(se.fileno(), sys.stderr.fileno())
 
+def run_command(command, shell=False):
+	p = subprocess.Popen(command, shell=shell,
+		stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+	stdout, stderr = [data.strip() for data in p.communicate()]
+	if p.returncode != 0 or stderr != '':
+		raise Exception("'%s' failed with " +
+			'non-zero returncode [%d] and/or non-empty stderr [%r]' % (
+			' '.join(command), p.returncode, stderr,
+		))
+
+	return stdout
+
 
 
 #--- misc
@@ -253,14 +265,7 @@ re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
 #these yield tuples representing metrics, and they do not loop
 
 def metrics_sdiag():
-	global progname
-
-	sh = 'sdiag'
-	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	stdout, stderr = [ x.strip() for x in p.communicate()]
-	if p.returncode!=0 or stderr!='':
-		raise Exception("sdiag failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
-
+	stdout = run_command(['sdiag'])
 	##e.g.
 	#*******************************************************
 	#sdiag output at Mon Dec  9 16:45:13 2013
@@ -337,35 +342,50 @@ def metrics_sdiag():
 				units = 'threads'
 			elif name.endswith('agent_queue_size'):
 				units = 'agents'
-			
+
 			if sched is not None:
 				name = '%s_%s' % (sched, name)
 			name = '%ssdiag_%s' % (metric_prefix, name)
-			
+
 			#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
-			yield (name, value, 'int32', units, progname, name, name)
+			yield (name, value, 'int32', units, PROGNAME, name, name)
 		except ValueError:
 			#e.g. dates
 			pass
 
 def metrics_jobcount():
-	global progname
-
 	for name, sh in (
 		('%sjobcount_total_pending'        % metric_prefix, "squeue -h -o '%u' -t PD | wc -l"),
 		('%sjobcount_total_running'        % metric_prefix, "squeue -h -o '%u' -t R  | wc -l"),
 		('%sjobcount_max_pending_one_user' % metric_prefix, "squeue -h -o '%u' -t PD | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 		('%sjobcount_max_running_one_user' % metric_prefix, "squeue -h -o '%u' -t R  | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 	):
-		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-		stdout, stderr = [ x.strip() for x in p.communicate()]
-		if p.returncode!=0 or stderr!='':
-			raise Exception("squeue command [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+		stdout = run_command(sh, shell=True)
+		if stdout == '':
+			stdout = '0'
 
-		if stdout=='': stdout = '0'
-		
 		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
-		yield (name, stdout, 'uint32', 'jobs', progname, name, name)
+		yield (name, stdout, 'uint32', 'jobs', PROGNAME, name, name)
+
+def metrics_reservations():
+	stdout = run_command(['scontrol', 'show', 'reservations', '-o'])
+
+	reserved_cores = 0
+	if 'No reservations in the system' in stdout:
+		# Fall through and return 0 reserved cores.
+		pass
+	else:
+		for line in stdout.split('\n'):
+			reservation = {}
+			for item in re.split(r'\s+', line):
+				field, value = item.split('=')
+				reservation[field] = value
+
+			reserved_cores += int(reservation['CoreCnt'])
+
+	name = '%scores_in_reservations' % metric_prefix
+	yield (name, reserved_cores, 'int32', 'CPU cores',
+		PROGNAME, name, name)
 
 def metrics_probejob(
 	partition,
@@ -378,9 +398,6 @@ def metrics_probejob(
 	command=probejob_default_command,
 	priority=probejob_default_priority,
 	):
-
-	global progname
-
 
 	#--- internal state
 
@@ -408,7 +425,7 @@ def metrics_probejob(
 	#--- submit job
 
 	if debug:
-		log("DEBUG: submitting probejob with [%r]" % sh)
+		log('DEBUG: submitting probejob with [%r]' % sh)
 	#(how long this takes is not of interest, as it won't take longer than the short MessageTimeout, and hitting that causes an exception below)
 
 	if fake_probejob:
@@ -417,7 +434,7 @@ def metrics_probejob(
 		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		stdout, stderr = [ x.strip() for x in p.communicate()]
 		if p.returncode!=0 or stderr!='':
-			raise Exception("job submission [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+			raise Exception('job submission [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]' % (sh, p.returncode, stderr))
 
 	#note the time we submitted so that we can compute how long it ends up pending
 	t_submit = time.time()
@@ -426,17 +443,17 @@ def metrics_probejob(
 	try:
 		jobid = int(stdout.rsplit(' ',1)[1])
 	except (ValueError, IndexError):
-		raise Exception("unable to parse jobid from [%r]" % stdout)
+		raise Exception('unable to parse jobid from [%r]' % stdout)
 
 	if debug:
-		log("submitted probejob, assigned jobid [%d]" % jobid)
+		log('submitted probejob, assigned jobid [%d]' % jobid)
 
 
 	#--- update its priority
 
-	sh = "sudo -u slurm scontrol update JobId=%s Priority=%s" % (shQuote(str(jobid)), shQuote(str(priority)))
+	sh = 'sudo -u slurm scontrol update JobId=%s Priority=%s' % (shQuote(str(jobid)), shQuote(str(priority)))
 	if debug:
-		log("DEBUG: updating probejob priority with [%r]" % sh)
+		log('DEBUG: updating probejob priority with [%r]' % sh)
 
 	if fake_probejob:
 		stdout, stderr = '', ''
@@ -444,7 +461,7 @@ def metrics_probejob(
 		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		stdout, stderr = [ x.strip() for x in p.communicate()]
 		if p.returncode!=0 or stderr!='':
-			raise Exception("job priority update [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+			raise Exception('job priority update [%r] failed with non-zero returncode [%d] and/or non-empty stderr [%r]' % (sh, p.returncode, stderr))
 
 
 	#--- wait for job not be pending and then wait for job to finish
@@ -462,7 +479,7 @@ def metrics_probejob(
 
 	while True:
 		if debug:
-			log("DEBUG: querying probejob state with [%r]" % sh)
+			log('DEBUG: querying probejob state with [%r]' % sh)
 
 		if fake_probejob:
 			if (time.time() - t_submit) < 4:
@@ -484,28 +501,28 @@ def metrics_probejob(
 				progress = 1
 		else:
 			if debug:
-				log("DEBUG: WARNING: unable to probejob query result stdout [%r] stderr [%r] returncode [%d]" % (jobid, stdout, stderr, p.returncode))
-		
+				log('DEBUG: WARNING: unable to probejob query result stdout [%r] stderr [%r] returncode [%d]' % (jobid, stdout, stderr, p.returncode))
+
 		#update the pend time if necessary
 		if progress>0 and s_pend is None:
 			s_pend = int(round(time.time() - t_submit))
 			if debug:
-				log("probejob [%d] no longer pending, after [%s] seconds" % (jobid, s_pend))
-		
+				log('probejob [%d] no longer pending, after [%s] seconds' % (jobid, s_pend))
+
 		#break or continue
 		if progress==2:
 			if debug:
 				state = stdout
 				if state=='': state = 'n/a'
-				log("probejob [%d] done, last seen in state [%s]" % (jobid, (stdout if stdout!='' else 'n/a')))
+				log('probejob [%d] done, last seen in state [%s]' % (jobid, (stdout if stdout!='' else 'n/a')))
 			break
 		else:
 			if s_pend is None:
 				if debug:
-					log("DEBUG: probejob [%d] still pending" % (jobid))
+					log('DEBUG: probejob [%d] still pending' % (jobid))
 
 			if debug:
-				log("DEBUG: sleeping for [%d] seconds" % probejob_query_interval)
+				log('DEBUG: sleeping for [%d] seconds' % probejob_query_interval)
 			time.sleep(probejob_query_interval)
 
 
@@ -513,7 +530,7 @@ def metrics_probejob(
 
 	#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 	s = 'pend time for a job in %s' % partition
-	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', progname, s, s)
+	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', PROGNAME, s, s)
 
 
 
@@ -527,11 +544,9 @@ def child(name, metricq, metricf, loopsleep):
 	loopsleep -- interval to sleep betwen runs
 	"""
 
-	global progname
-	global logoption
-	name = '%s(%s)' % (progname, name)
+	name = '%s(%s)' % (PROGNAME, name)
 	syslog.closelog()
-	syslog.openlog(name, logoption)
+	syslog.openlog(name, LOGOPTIONS)
 
 	try:
 		while True:
@@ -539,22 +554,20 @@ def child(name, metricq, metricf, loopsleep):
 				for metric in metricf():
 					metricq.put(metric)
 			except Exception, e:
-				log("metrics for [%s] failed with message [%s]" % (name, e))
+				log('metrics for [%s] failed with message [%s]' % (name, e))
 				if debug:
 					for line in ''.join(traceback.format_exception(*sys.exc_info())).strip().split('\n'):
-						log("DEBUG: %s" % line)
-				
-				if debug:
-					log("DEBUG: sleeping for [%d] seconds" % metric_fail_retry_interval)
+						log('DEBUG: %s' % line)
+					log('DEBUG: sleeping for [%d] seconds' % metric_fail_retry_interval)
+
 				time.sleep(metric_fail_retry_interval)
 
 			if debug:
-				log("DEBUG: sleeping for [%d] seconds" % loopsleep)
+				log('DEBUG: sleeping for [%d] seconds' % loopsleep)
 			time.sleep(loopsleep)
-			
 	except (KeyboardInterrupt, SystemExit):
 		#FIXME look for child processes and try to kill them
-		log("shutting down")
+		log('shutting down')
 
 	syslog.closelog()
 
@@ -568,7 +581,7 @@ if __name__=='__main__':
 	if daemon:
 		daemonize()
 
-	syslog.openlog(progname, logoption)
+	syslog.openlog(PROGNAME, LOGOPTIONS)
 
 	metricq = multiprocessing.Queue()
 
@@ -577,18 +590,25 @@ if __name__=='__main__':
 
 	#--- startup
 
-	log("starting")
+	log('starting')
 
 	#sdiag metrics
 	p = multiprocessing.Process(target=lambda:child('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
 	p.start()
-	log("started sdiag metrics process, pid [%d]" % p.pid)
+	log('started sdiag metrics process, pid [%d]' % p.pid)
 	children.append(p)
 
 	#jobcount metrics
 	p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
 	p.start()
-	log("started jobcount metrics process, pid [%d]" % p.pid)
+	log('started jobcount metrics process, pid [%d]' % p.pid)
+	children.append(p)
+
+	#number of reserved cores
+	p = multiprocessing.Process(target=lambda: child('reservations',
+		metricq, lambda: metrics_reservations(), metric_interval_reservations))
+	p.start()
+	log('started reserved cores metrics process, pid [%d]' % p.pid)
 	children.append(p)
 
 	#probejob metrics
@@ -596,23 +616,23 @@ if __name__=='__main__':
 		name = 'probejob-%s' % partition
 		p = multiprocessing.Process(target=lambda:child(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
 		p.start()
-		log("started [%s] metrics process, pid [%d]" % (name, p.pid))
+		log('started [%s] metrics process, pid [%d]' % (name, p.pid))
 		children.append(p)
 
 
 	#--- define shutdown
 
 	def shutdown(signum, frame):
-		log("caught signal [%d], shutting down" % signum)
+		log('caught signal [%d], shutting down' % signum)
 		for p in children:
 			if debug:
-				log("DEBUG: attempting to kill child pid [%d] if necessary" % p.pid)
+				log('DEBUG: attempting to kill child pid [%d] if necessary' % p.pid)
 			try:
 				p.terminate()
 			except Exception:
 				pass
 			p.join()
-		log("done")
+		log('done')
 		syslog.closelog()
 		sys.exit(0)
 	for s in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGQUIT):
@@ -622,28 +642,25 @@ if __name__=='__main__':
 	#--- run
 
 	while True:
+		# (NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 		m = metricq.get()
-		
-		#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
+
 		if debug:
-			msg = "DEBUG: "
+			msg = 'DEBUG: '
 			if pretend:
-				msg += "PRETEND: "
-			msg += "sending metric [%s]" % str(m)
+				msg += 'PRETEND: '
+			msg += 'sending metric [%s]' % str(m)
 			log(msg)
-		sh = 'gmetric --name %s --value %s --type %s --units %s --group %s --title %s --desc %s --tmax 86400' % (  #FIXME proper --tmax
-			shQuote(str(m[0])),
-			shQuote(str(m[1])),
-			shQuote(str(m[2])),
-			shQuote(str(m[3])),
-			shQuote(str(m[4])),
-			shQuote(str(m[5])),
-			shQuote(str(m[6])),
-		)
+		command = [
+			'gmetric',
+			'--name', str(m[0]), '--value', str(m[1]),
+			'--type', str(m[2]), '--units', str(m[3]),
+			'--group', str(m[4]), '--title', str(m[5]),
+			'--desc', str(m[6]),
+			# FIXME: proper --tmax
+			'--tmax', '86400'
+		]
 		if verbose:
-			print sh
+			print ' '.join(command)
 		if not pretend:
-			p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-			stdout, stderr = [ x.strip() for x in p.communicate()]
-			if p.returncode!=0 or stderr!='':
-				log("WARNING: gmetric [%s] failed with non-zero returncode [%d] and/or non-empty stderr [%r]" % (sh, p.returncode, stderr))
+			run_command(command)

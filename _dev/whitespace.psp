@@ -1,0 +1,134 @@
+<%
+import sys, os, glob, json
+
+hostname_glob_filter= 'holy*'
+
+sys.path.append('/n/home_rc/jab/harvard/sw/slurmmon/_dev')
+from slurmmonlib import *
+%>
+
+<html>
+<head>
+<title>whitespace</title>
+<style>
+a {
+	text-decoration: none;
+}
+</style>
+<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+<script type="text/javascript">
+	google.load("visualization", "1", {packages:["corechart"]});
+	google.setOnLoadCallback(drawChart);
+	function drawChart() {
+		/*
+		var data = google.visualization.arrayToDataTable([
+			['%cpu', '%mem'],
+			[ {v:25, f:'hosta'},  {v:50, f:''}],
+			[ {v:75, f:'hostb'},  {v:100, f:''}],
+		]);
+		*/
+
+		var data = new google.visualization.DataTable();
+		data.addColumn('number', '% cpu');
+		data.addColumn('number', 'allocated');  //allocation
+		data.addColumn({type: 'string', role: 'tooltip', 'p': {'html': true}});
+		data.addColumn('number', 'utilized');  //utilization
+		data.addColumn({type: 'string', role: 'tooltip', 'p': {'html': true}});
+		data.addRows([
+<%
+for data_file in glob.iglob(os.path.join(data_dir, 'host_data.%s' % hostname_glob_filter)):
+	try:
+		host_data = json.load(open(data_file,'r'))
+		allocation_pcpu = min(host_data['allocation']['pcpu'], 100)
+		allocation_pmem = min(host_data['allocation']['pmem'], 100)
+		utilization_pcpu = min(host_data['utilization']['pcpu'], 100)
+		utilization_pmem = min(host_data['utilization']['pmem'], 100)
+		hostname = host_data['hostname'].encode('utf-8')
+		url = hostname2gangliaurl(hostname)
+		label = '&nbsp;<br />&nbsp;&nbsp;&nbsp;&nbsp;%s&nbsp;&nbsp;&nbsp;&nbsp;<br />&nbsp;' % hostname
+	except Exception:
+		continue
+
+	req.write("""[%s,   %s, '<a href="%s">%s</a>', null, null],\n""" % (allocation_pcpu , allocation_pmem , url, label))
+	req.write("""[%s, null, null,   %s, '<a href="%s">%s</a>'],\n""" % (utilization_pcpu, utilization_pmem, url, label))
+#end indent
+%>
+		]);
+
+		var options = {
+			title: 'Resources Allocated by Slurm vs. Resources Actually Used',
+			hAxis: {title: '% cpu', minValue: 0, maxValue: 100},
+			vAxis: {title: '% mem', minValue: 0, maxValue: 100},
+			pointSize: 3,
+			tooltip: {isHtml: true, trigger: 'selection, hover'},
+		};
+
+		var chart = new google.visualization.ScatterChart(document.getElementById('utilization_chart'));
+		chart.draw(data, options);
+	}
+</script>
+</head>
+<body>
+<div style="width:800px; margin:0 auto;">
+
+<h1>Memory over-allocation and under-usage is a problem.</h1>
+
+<p>
+The following plot has two dots for each compute node -- a blue one for the resources allocated to it by Slurm, and a red one for the resources it's actually using.
+Ideally, the red dot and blue dot for each host would match.
+They don't.
+Hover over the legend entries to get a feel for the overall density of the two datasets.
+The divergence in the vertical dimension -- memory -- is striking.
+</p>
+
+<p>
+Users are obviously asking for much more memory than they need.
+From Slurm's perspective, the cluster is more utilized than it really is.
+The unused memory allocations are blocking off resources that pending jobs -- jobs with their own memory requirements -- could actually use and in turn could raise the cpu load.
+</p>
+
+<p>
+If there were clusters of red dots along the top edge, even if to the left, we could use the data to somewhat justify the cpu-utilization whitespace.
+This data shows that is not the case, though.
+</p>
+
+<p>
+Hunting down and educating the biggest offenders is the easiest first attack (we already have almost all the code).
+Maybe something better could be done about the overall system, though -- it has a hard penalty for underestimations (jobs are killed) but only a subtle penalty for overestimations (all jobs pend longer, which just gets blamed on us and Slurm itself).
+It's no wonder this is happening, really...
+</p>
+
+<div id="utilization_chart" style="width: 800px; height: 800px;"></div>
+
+
+
+<!--
+<h1>hypothesis 1: reservations and owned nodes are idle</h1>
+
+
+
+<h1>hypothesis 2: users are overasking for and wasting memory</h1>
+
+Included in this category is <using>- -mem</using> and getting an un-balanced allocation across nodes.
+
+
+
+<h1>hypothesis 3: memory usage is limiting cpu usage</h1>
+
+<em>Is the whitespace due to the inability to fully utilize both cpu and memory?</em>
+
+<p>
+This hypothesis for the source of the cpu whitespace is the idea that slurm can't allocate jobs to more cores because all the memory is already allocated to other jobs.
+In other words, even though there is whitespace in both the overall cpu and memory utilization charts, individual nodes are making good use of one or the other.
+
+Below is a plot of the simple cpu and memory percentage utilization of each node.
+This is what's actually being used, not what's asked for by the job.
+If this hypothesis describes the main cause of the whitespace, there should be two clusters of dots here, in the upper left and lower right (100% memory and cpu, respectively):
+</p>
+-->
+
+
+
+</div>
+</body>
+</html>

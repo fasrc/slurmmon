@@ -1,0 +1,31 @@
+#!/usr/bin/env python
+
+import os, time, json
+from slurmmonlib import *
+
+if __name__=='__main__':
+	hostname = getHostname()
+	with open(os.path.join(data_dir, 'host_data.%s' % getHostname()), 'w') as f:
+		cores_total , cores_used  = getCPU()
+		memory_total, memory_used = getMem()
+
+		cores_allocated, memory_allocated = getAllocations(hostname)
+
+		d = {
+			'hostname': hostname,
+			'timestamp': time.time(),
+			'physical': {
+				'cores': cores_total,
+				'memory': memory_total,
+			},
+			'utilization': {
+				'pcpu': float(cores_used)/cores_total * 100,
+				'pmem': float(memory_used)/memory_total * 100,
+			},
+			'allocation': {
+				'pcpu': float(cores_allocated)/cores_total * 100,
+				'pmem': float(memory_allocated)/memory_total * 100,
+			}
+		}
+
+		json.dump(d, f)

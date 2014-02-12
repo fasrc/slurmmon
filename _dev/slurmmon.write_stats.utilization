@@ -1,0 +1,17 @@
+#!/usr/bin/env python
+
+import os, time, json
+from slurmmonlib import *
+
+if __name__=='__main__':
+	hostname = getHostname()
+	with open(os.path.join(data_dir, 'utilization.%s' % getHostname()), 'w') as f:
+
+		d = {
+			'hostname': hostname,
+			'pcpu': getCPUUtilPercent(),
+			'pmem': getMemUtilPercent(),
+			'timestamp': time.time(),
+		}
+
+		json.dump(d, f)

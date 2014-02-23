@@ -46,7 +46,7 @@ if [ -z "$prog" ]; then
 	echo "*** ERROR *** slurmmond command not found" >&2
 	exit 1
 fi
-COMMAND_LINE="python $prog --daemon --metrics sdiag --metrics jobcount --metrics reservations --metrics probejob"
+COMMAND_LINE="python $prog --daemon --metrics computenode"
 
 # SHOULD_RUN_AS -- enforce this script be run by a specific user
 # If not blank, makes sure that start and stop run as the specified user (this 

@@ -1,4 +1,4 @@
-import socket, subprocess
+import sys, socket, subprocess
 
 
 
@@ -19,36 +19,66 @@ def shQuote(text):
 
 #--- slurm allocation queries
 
-def getAllocations(hostname):
-	"""return a two-item list [number of allocated cores, allocated mem in kB]"""
+def getAllocations(hostname, method=2):
+	"""return a two-item list [number of allocated cores (int), allocated mem in kB (int)]"""
 
-	sh = r"squeue -h -o '%%A' -t R -w %s | xargs -n 1 scontrol -dd show job | grep -P '\bNodes='" % shQuote(hostname)
-	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
-	stdout = p.communicate()[0].strip(); rc = p.returncode
-	if rc!=0: raise Exception('non-zero exit status: %d' % str(sys.exit((rc,128-rc)[rc<0])))
+	if method==1:
+		#round-about: get all the jobs using the host, and from the jobs get the allocations
 
-	cores = 0
-	memory = 0
+		sh = r"squeue -h -o '%%A' -t R -w %s | xargs -n 1 scontrol -dd show job | grep -P '\bNodes='" % shQuote(hostname)
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
+		stdout = p.communicate()[0].strip(); rc = p.returncode
+		if rc!=0: raise Exception('non-zero exit status: %d' % str(sys.exit((rc,128-rc)[rc<0])))
 
-	for line in stdout.split('\n'):
-		#some possible lines:
-		#	Nodes=holy2a06104 CPU_IDs=10 Mem=4000
-		#	Nodes=holy2a13303 CPU_IDs=0-63 Mem=10000
-		#	Nodes=holy2a14208 CPU_IDs=15,28-29,31,35,45,59-60 Mem=800
-		
-		Nodes, CPU_IDs, Mem = line.strip().split()
-		
-		if Nodes.split('=')[1]==hostname:
-			for x in CPU_IDs.split('=')[1].split(','):
-				if '-' not in x:
-					cores += 1
-				else:
-					start, end = x.split('-')
-					cores += int(end) - int(start) + 1
+		cores = 0
+		memory = 0
 
-			memory += int(Mem.split('=')[1]) * 1024
+		for line in stdout.split('\n'):
+			#total up CPU_ID counts and Mem for each node entry that matches the host of interest
+			#some possible lines:
+			#	Nodes=holy2a06104 CPU_IDs=10 Mem=4000
+			#	Nodes=holy2a13303 CPU_IDs=0-63 Mem=10000
+			#	Nodes=holy2a14208 CPU_IDs=15,28-29,31,35,45,59-60 Mem=800
+			
+			Nodes, CPU_IDs, Mem = line.strip().split()
+			
+			if Nodes.split('=')[1]==hostname:
+				for x in CPU_IDs.split('=')[1].split(','):
+					if '-' not in x:
+						cores += 1
+					else:
+						start, end = x.split('-')
+						cores += int(end) - int(start) + 1
 
-	return cores, memory
+				memory += int(Mem.split('=')[1]) * 1024  #this factor might need work -- in general slurm sometimes uses 2**10 and sometimes uses 10**3
+
+		return cores, memory
+	
+	if method==2:
+		#more direct: use the numbers from scontrol show node
+
+		sh = r"scontrol show node %s" % shQuote(hostname)
+		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
+		stdout = p.communicate()[0].strip(); rc = p.returncode
+		if rc!=0: raise Exception('non-zero exit status: %d' % str(sys.exit((rc,128-rc)[rc<0])))
+
+		cores = None
+		memory = None
+
+		#extract CPUAlloc and AllocMem
+		for kv in stdout.split():
+			if kv.startswith('CPUAlloc'):
+				cores = int(kv.split('=')[1])
+				if memory is not None:
+					break
+			elif kv.startswith('AllocMem'):
+				memory = int(kv.split('=')[1]) * 1024
+				if cores is not None:
+					break
+
+		return cores, memory
+
+	raise Exception("internal error: invalid method for getAllocations()")
 
 
 #--- host data queries
@@ -58,7 +88,7 @@ def getHostname():
 	return socket.gethostname().split('.')[0]
 
 def getCPU():
-	"""return a two-item list [total number of cores, number of running tasks]
+	"""return a two-item list [total number of cores (int), number of running tasks (int)]
 	
 	The number of running tasks is from the 4th colum of /proc/loadavg;
 	it's decremented by one in order to account for this process asking for it.
@@ -77,7 +107,7 @@ def getCPU():
 	return total, used
 
 def getMem():
-	"""return a two-item list [total memory in kB, used memory in kB]
+	"""return a two-item list [total memory in kB (int), used memory in kB (int)]
 
 	The used memory does not count Buffers, Cached, and SwapCached.
 	"""
@@ -108,4 +138,6 @@ def hostname2gangliaurl(hostname):
 #--- tests
 
 if __name__=='__main__':
-	pass
+	"""
+	print getAllocations(getHostname(), method=1) == getAllocations(getHostname(), method=2)
+	"""

@@ -14,5 +14,5 @@ rm -fr /tmp/slurmmon-$version
 
 rpmbuild -ba --target=noarch slurmmon.spec
 
-/bin/cp -af ~/rpmbuild/RPMS/noarch/slurmmon* .
-/bin/cp -af ~/rpmbuild/SRPMS/slurmmon* .
+/bin/cp -af ~/rpmbuild/RPMS/noarch/slurmmon* rpms/
+/bin/cp -af ~/rpmbuild/SRPMS/slurmmon* rpms/

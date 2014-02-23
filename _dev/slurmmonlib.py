@@ -20,8 +20,8 @@ def shQuote(text):
 #--- slurm allocation queries
 
 def getAllocations(hostname):
-	"""a two-item list [number of allocated cores, allocated mem in kB]"""
-	
+	"""return a two-item list [number of allocated cores, allocated mem in kB]"""
+
 	sh = r"squeue -h -o '%%A' -t R -w %s | xargs -n 1 scontrol -dd show job | grep -P '\bNodes='" % shQuote(hostname)
 	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
 	stdout = p.communicate()[0].strip(); rc = p.returncode
@@ -31,10 +31,10 @@ def getAllocations(hostname):
 	memory = 0
 
 	for line in stdout.split('\n'):
-		#e.g.
-		#Nodes=holy2a06104 CPU_IDs=10 Mem=4000
-		#Nodes=holy2a13303 CPU_IDs=0-63 Mem=10000
-		#Nodes=holy2a14208 CPU_IDs=15,28-29,31,35,45,59-60 Mem=800
+		#some possible lines:
+		#	Nodes=holy2a06104 CPU_IDs=10 Mem=4000
+		#	Nodes=holy2a13303 CPU_IDs=0-63 Mem=10000
+		#	Nodes=holy2a14208 CPU_IDs=15,28-29,31,35,45,59-60 Mem=800
 		
 		Nodes, CPU_IDs, Mem = line.strip().split()
 		
@@ -54,12 +54,19 @@ def getAllocations(hostname):
 #--- host data queries
 
 def getHostname():
+	"""return the short hostname of this host"""
 	return socket.gethostname().split('.')[0]
 
 def getCPU():
+	"""return a two-item list [total number of cores, number of running tasks]
+	
+	The number of running tasks is from the 4th colum of /proc/loadavg;
+	it's decremented by one in order to account for this process asking for it.
+	"""
 	#running processes
 	with open('/proc/loadavg','r') as f:
-		used = f.read().split()[3].split('/')[0]
+		#e.g. 52.10 52.07 52.04 53/2016 54847 -> 53-1 = 52
+		used = max(int(f.read().split()[3].split('/')[0]) - 1, 0)
 	
 	with open('/proc/cpuinfo','r') as f:
 		total = 0
@@ -70,6 +77,10 @@ def getCPU():
 	return total, used
 
 def getMem():
+	"""return a two-item list [total memory in kB, used memory in kB]
+
+	The used memory does not count Buffers, Cached, and SwapCached.
+	"""
 	#in kB
 	with open('/proc/meminfo','r') as f:
 		total = 0

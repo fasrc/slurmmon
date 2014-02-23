@@ -1,5 +1,5 @@
 Name: slurmmon
-Version: 0.0.1
+Version: 0.0.2
 Release: fasrc01
 Summary: gather and plot data about Slurm
 Packager: Harvard FAS Research Computing -- John Brunelle <john_brunelle@harvard.edu>
@@ -68,6 +68,7 @@ done
 %files daemon
 %defattr(-,root,root,-)
 /etc/init.d/slurmmond
+/etc/init.d/slurmmond-computenode
 /usr/sbin/slurmmond
 %config(noreplace)
 /etc/slurmmon.conf

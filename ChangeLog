@@ -1,0 +1,6 @@
+0.0.2 (2014-02-23)
+    * added computenode metric set for allocation vs utilization (to be run on
+      each compute node)
+
+0.0.1 (2014-01-23)
+	initial release

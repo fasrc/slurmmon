@@ -8,9 +8,9 @@ It can also submit *probe* jobs to various partitions in order to trend the time
 
 There are three components to slurmmon:
 
-* [slurmmon-daemon](slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true) -- the daemons that run Slurm commands such as `sdiag`, `squeue`, etc., submit probe jobs (if configured), and send data to ganglia using `gmetric`
-* [slurmmon-ganglia](slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true) -- the ganglia custom reports that use php to stack rrd data (to be dropped in a `graph.d` directory in some ganglia installation)
-* [slurmmon-web](slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true) -- a psp web page that organizes all the reports and relevant plots (which can run on an independent web server)
+* [slurmmon-daemon](RPMS/slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true) -- the daemons that run Slurm commands such as `sdiag`, `squeue`, etc., submit probe jobs (if configured), and send data to ganglia using `gmetric`
+* [slurmmon-ganglia](RPMS/slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true) -- the ganglia custom reports that use php to stack rrd data (to be dropped in a `graph.d` directory in some ganglia installation)
+* [slurmmon-web](RPMS/slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true) -- a psp web page that organizes all the reports and relevant plots (which can run on an independent web server)
 
 Here is a screenshot from the production cluster at FASRC:
 
@@ -55,7 +55,7 @@ If you're not running probe jobs, you don't need the sudo config.
 Identify a Slurm client host on which to run the daemons that query slurm.
 This host should also be in ganglia (`gmetric` needs to work), and it should be same host where the `slurmmon` user can run sudo to change job priorities.
 
-Install [slurmmon-daemon-0.0.1-fasrc01.noarch.rpm](slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true).
+Install [slurmmon-daemon-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true).
 
 Configure it by editing `/etc/slurmmon.conf`, which is json.
 Specifically, set `probejob_partitions` to be the set of names of partitions to which you want to send probe jobs.
@@ -79,7 +79,7 @@ chkconfig slurmmond on
 Identify a host running `ganglia-web`, and a `graph.d` directory into which to put the slurmmon custom reports.
 By default the rpm will use `/var/www/ganglia/graph.d`, but this is an available *Relocation* in the rpm.
 
-Install [slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm](slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
+Install [slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
 
 
 #### slurmmon-web
@@ -87,7 +87,7 @@ Install [slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm](slurmmon-ganglia-0.0.1-fasrc
 Identify a host running httpd and mod_python.
 By default, the package installs files to `/etc/httpd/conf.d` and `/var/www/html/slurmmon`, but these are available *Relocation*s in the rpm.
 
-Install [slurmmon-web-0.0.1-fasrc01.noarch.rpm](slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true), possible using `--prefix` to put the files in custom locations.
+Install [slurmmon-web-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true), possible using `--prefix` to put the files in custom locations.
 
 Configure it by editing `/etc/slurmmon.conf`, which is json.
 Specifically, set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to construct a url to reach the ganglia plots. 

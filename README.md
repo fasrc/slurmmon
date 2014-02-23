@@ -31,6 +31,7 @@ You'll of course need Slurm, and you'll also need a ganglia installation and an 
 The daemons run as a user named `slurmmon`.
 Assuming you'll be running probe jobs, this user should be able to submit jobs to all the partitions being probed.
 Therefore, since it should be a cluster account, the rpms do not make this user -- you have to.
+<!-- only need stuff to be able to run job: login shell needed, but home dir not -->
 
 Additionally, since slurmmon doesn't want the probe jobs to suffer hits to fairshare due to the constant job turnover, it increases the priority of each job, and that currently requires sudo.
 Thus, add something like this in the sudo configuration:
@@ -42,6 +43,9 @@ slurmmon HOSTNAME=(slurm) NOPASSWD: /usr/bin/scontrol update JobId\=* Priority\=
 where `HOSTNAME` is the node where you're running the daemons.
 (Note that the `*` in the about could match multiple words, it's not perfect.)
 If you're not running probe jobs, you don't need the sudo config.
+<!-- if sudo is not configured, you'll get error like: Dec  9 13:43:45 slurm-test slurmmond(probejob-MYQUEUE)[28115]: metrics for [slurmmond(probejob-MYQUEUE)] failed with message [job priority update ["sudo scontrol update JobId='153' Priority='999999999'"] failed with non-zero returncode [1] and/or non-empty stderr ['sudo: no tty present and no askpass program specified']] -->
+
+
 
 
 ### Install the RPMs

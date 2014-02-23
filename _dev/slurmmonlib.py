@@ -20,7 +20,7 @@ def shQuote(text):
 #--- slurm allocation queries
 
 def getAllocations(hostname):
-	"""a list [allocated cores, allocated mem in kB]"""
+	"""a two-item list [number of allocated cores, allocated mem in kB]"""
 	
 	sh = r"squeue -h -o '%%A' -t R -w %s | xargs -n 1 scontrol -dd show job | grep -P '\bNodes='" % shQuote(hostname)
 	p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
@@ -56,20 +56,6 @@ def getAllocations(hostname):
 def getHostname():
 	return socket.gethostname().split('.')[0]
 
-#DELETE THIS
-def getCPUUtilPercent():
-	#running processes
-	with open('/proc/loadavg','r') as f:
-		used = f.read().split()[3].split('/')[0]
-	
-	with open('/proc/cpuinfo','r') as f:
-		total = 0
-		for l in f.readlines():
-			if l.startswith('processor'):
-				total += 1
-	
-	return float(used)/total * 100
-
 def getCPU():
 	#running processes
 	with open('/proc/loadavg','r') as f:
@@ -82,23 +68,6 @@ def getCPU():
 				total += 1
 	
 	return total, used
-
-#DELETE THIS
-def getMemUtilPercent():
-	with open('/proc/meminfo','r') as f:
-		total = 0
-		free = 0
-
-		for line in f.readlines():
-			fields = line.split()
-			if fields[0]=='MemTotal:':
-				total = int(fields[1])
-			if fields[0] in ('MemFree:', 'Buffers:', 'Cached:', 'SwapCached'):
-				free += int(fields[1])
-
-		used = total - free
-
-		return float(used)/total * 100
 
 def getMem():
 	#in kB
@@ -128,5 +97,4 @@ def hostname2gangliaurl(hostname):
 #--- tests
 
 if __name__=='__main__':
-	print getCPUUtilPercent()
-	print getMemUtilPercent()
+	pass

@@ -12,14 +12,24 @@ SYNOPSIS
 	slurmmond
 
 DESCRIPTION
-	This runs several child processes that loop reporting back to the parent
+	This runs several child processes that loop reporting back to the parent 
 	various metrics.  The master process sends these to ganglia by running
 	gmetric.
 
-	Note that this uses python multiprocessing, so it's normal to see several
+	Note that this uses python multiprocessing, so it's normal to see several 
 	instances of the process in the process table.
 
 OPTIONS
+	--metrics CATEGORY
+		Run the given CATEGORY of metrics.  This option may be used multiple 
+		times; all given categories will be run.  Choices are:
+
+		* sdiag
+		* jobcount
+		* reservations
+		* probejob
+		* host
+
 	--daemon
 		Run as a daemon instead of in the foreground as a child of the calling process.
 
@@ -50,7 +60,6 @@ BUGS/TODO
 AUTHOR
 	Copyright (c) 2013
 	Harvard FAS Research Computing
-	John A. Brunelle
 """
 
 """
@@ -103,10 +112,16 @@ metrics (subject to change)
 	slurmmond_sdiag_backfill_depth_mean_try_depth.rrd (jobs)
 	slurmmond_sdiag_backfill_last_queue_length.rrd (jobs)
 	slurmmond_sdiag_backfill_queue_length_mean.rrd (jobs)
+
+
+	#--- reservations
+
+	slurmmond_cores_in_reservations (CPU cores)
 """
 
 import sys, os, traceback, time, re, getopt, syslog, signal, json, subprocess, multiprocessing
 
+metrics = []
 daemon = False
 conf = '/etc/slurmmon.conf'
 verbose = False
@@ -121,10 +136,13 @@ except getopt.GetoptError, e:
 	sys.stderr.write('*** ERROR **** unable to process command line options: %s\n' % e)
 	sys.exit(1)
 for opt, optarg in opts:
+	if opt in ('--metrics',):
+		metrics.append(optarg)
 	if opt in ('--daemon',):
 		daemon = True
 	if opt in ('--conf',):
 		conf = optarg
+
 	elif opt in ('-v', '--verbose'):
 		verbose = True
 	elif opt in ('-d', '--debug'):
@@ -133,6 +151,7 @@ for opt, optarg in opts:
 		pretend = True
 	elif opt in ('--log-to-stderr',):
 		log_to_stderr = True
+
 	elif opt in ('-h', '--help'):
 		sys.stdout.write(__doc__)
 		sys.exit(0)
@@ -592,32 +611,32 @@ if __name__=='__main__':
 
 	log('starting')
 
-	#sdiag metrics
-	p = multiprocessing.Process(target=lambda:child('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
-	p.start()
-	log('started sdiag metrics process, pid [%d]' % p.pid)
-	children.append(p)
-
-	#jobcount metrics
-	p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
-	p.start()
-	log('started jobcount metrics process, pid [%d]' % p.pid)
-	children.append(p)
-
-	#number of reserved cores
-	p = multiprocessing.Process(target=lambda: child('reservations',
-		metricq, lambda: metrics_reservations(), metric_interval_reservations))
-	p.start()
-	log('started reserved cores metrics process, pid [%d]' % p.pid)
-	children.append(p)
-
-	#probejob metrics
-	for partition in probejob_partitions:
-		name = 'probejob-%s' % partition
-		p = multiprocessing.Process(target=lambda:child(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
+	if 'sdiag' in metrics:
+		p = multiprocessing.Process(target=lambda:child('sdiag', metricq, lambda:metrics_sdiag(), metric_interval_sdiag))
 		p.start()
-		log('started [%s] metrics process, pid [%d]' % (name, p.pid))
+		log('started sdiag metrics process, pid [%d]' % p.pid)
 		children.append(p)
+
+	if 'jobcount' in metrics:
+		p = multiprocessing.Process(target=lambda:child('jobcount', metricq, lambda:metrics_jobcount(), metric_interval_jobcount))
+		p.start()
+		log('started jobcount metrics process, pid [%d]' % p.pid)
+		children.append(p)
+
+	if 'reservations' in metrics:
+		p = multiprocessing.Process(target=lambda: child('reservations',
+			metricq, lambda: metrics_reservations(), metric_interval_reservations))
+		p.start()
+		log('started reserved cores metrics process, pid [%d]' % p.pid)
+		children.append(p)
+
+	if 'probejob' in metrics:
+		for partition in probejob_partitions:
+			name = 'probejob-%s' % partition
+			p = multiprocessing.Process(target=lambda:child(name, metricq, lambda:metrics_probejob(partition), metric_interval_probejob))
+			p.start()
+			log('started [%s] metrics process, pid [%d]' % (name, p.pid))
+			children.append(p)
 
 
 	#--- define shutdown

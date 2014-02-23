@@ -45,7 +45,8 @@ OPTIONS
 		Write metrics to stdout, too (as gmetric commands).
 
 	-d, --debug
-		Log extra debugging information.
+		Log extra debugging information.  Even without --daemon, you still need 
+		to look in syslog to find them.
 
 	-p, --pretend
 		Don't actually send gmetrics.
@@ -55,6 +56,11 @@ OPTIONS
 
 	-h, --help
 		Print this help.
+
+EXAMPLES
+	To debug a CATEGORY without sending any metrics:
+
+		$ ./usr/sbin/slurmmond -v -d -p --conf etc/slurmmon.conf --metrics CATEGORY
 
 REQUIREMENTS
 	n/a
@@ -124,7 +130,7 @@ metrics (subject to change)
 	slurmmond_cores_in_reservations (CPU cores)
 """
 
-import sys, os, traceback, time, re, getopt, syslog, signal, json, subprocess, multiprocessing
+import sys, os, traceback, time, re, getopt, syslog, socket, signal, json, subprocess, multiprocessing
 
 metrics = []
 daemon = False
@@ -136,7 +142,7 @@ log_to_stderr = False
 fake_probejob = False
 
 try:
-	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('daemon', 'conf=', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
+	opts, args = getopt.gnu_getopt(sys.argv[1:], 'vdph', ('metrics=', 'daemon', 'conf=', 'verbose', 'debug', 'pretend', 'log-to-stderr', 'help',))
 except getopt.GetoptError, e:
 	sys.stderr.write('*** ERROR **** unable to process command line options: %s\n' % e)
 	sys.exit(1)
@@ -165,6 +171,10 @@ PROGNAME = os.path.basename(__file__)
 LOGOPTIONS = syslog.LOG_PID
 if log_to_stderr:
 	LOGOPTIONS |= syslog.LOG_PERROR
+
+if len(metrics)==0:
+	sys.stderr.write("*** ERROR *** no --metrics specified\n")
+	sys.exit(1)
 
 
 
@@ -198,6 +208,7 @@ metric_interval_sdiag        = config.get('metric_interval_sdiag'   ,     120)
 metric_interval_jobcount     = config.get('metric_interval_jobcount',     120)
 metric_interval_reservations = config.get('metric_interval_reservations', 120)
 metric_interval_probejob     = config.get('metric_interval_probejob',     120)
+metric_interval_computenode  = config.get('metric_interval_computenode',  120)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
@@ -671,37 +682,37 @@ def metrics_probejob(
 def metrics_computenode():
 	cores_total , cores_used  = getCPU()
 	memory_total, memory_used = getMem()
-	cores_allocated, memory_allocated = getAllocations(hostname)
+	cores_allocated, memory_allocated = getAllocations(getHostname())
 
 	#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 	
 	name = '%scores_total' % metric_prefix
 	yield (name, cores_total, 'uint32', 'cores', PROGNAME, name, name)
 	
-	name = '%cores_used' % metric_prefix
+	name = '%scores_used' % metric_prefix
 	yield (name, cores_used, 'uint32', 'cores', PROGNAME, name, name)
 	
-	name = '%cores_allocated' % metric_prefix
+	name = '%scores_allocated' % metric_prefix
 	yield (name, cores_allocated, 'uint32', 'cores', PROGNAME, name, name)
 	
 	name = '%smemory_total' % metric_prefix
-	yield (name, memory_total, 'uint32', 'cores', PROGNAME, name, name)
+	yield (name, memory_total, 'uint32', 'kB', PROGNAME, name, name)
 	
-	name = '%memory_used' % metric_prefix
-	yield (name, memory_used, 'uint32', 'cores', PROGNAME, name, name)
+	name = '%smemory_used' % metric_prefix
+	yield (name, memory_used, 'uint32', 'kB', PROGNAME, name, name)
 	
-	name = '%memory_allocated' % metric_prefix
-	yield (name, memory_allocated, 'uint32', 'cores', PROGNAME, name, name)
+	name = '%smemory_allocated' % metric_prefix
+	yield (name, memory_allocated, 'uint32', 'kB', PROGNAME, name, name)
 	
-	name = '%pcu_utilization' % metric_prefix
-	yield (name, float(cores_used)/cores_total * 100, 'uint32', 'cores', PROGNAME, name, name)
-	name = '%pmem_utilization' % metric_prefix
-	yield (name, float(memory_used)/memory_total * 100, 'uint32', 'cores', PROGNAME, name, name)
+	name = '%spcu_utilization' % metric_prefix
+	yield (name, float(cores_used)/cores_total * 100, 'float', 'percent', PROGNAME, name, name)
+	name = '%spmem_utilization' % metric_prefix
+	yield (name, float(memory_used)/memory_total * 100, 'float', 'percent', PROGNAME, name, name)
 	
-	name = '%pcu_allocation' % metric_prefix
-	yield (name, float(cores_allocated)/cores_total * 100, 'uint32', 'cores', PROGNAME, name, name)
-	name = '%pmem_allocation' % metric_prefix
-	yield (name, float(memory_allocated)/memory_total * 100, 'uint32', 'cores', PROGNAME, name, name)
+	name = '%spcu_allocation' % metric_prefix
+	yield (name, float(cores_allocated)/cores_total * 100, 'float', 'percent', PROGNAME, name, name)
+	name = '%spmem_allocation' % metric_prefix
+	yield (name, float(memory_allocated)/memory_total * 100, 'float', 'percent', PROGNAME, name, name)
 
 
 
@@ -789,6 +800,12 @@ if __name__=='__main__':
 			p.start()
 			log('started [%s] metrics process, pid [%d]' % (name, p.pid))
 			children.append(p)
+
+	if 'computenode' in metrics:
+		p = multiprocessing.Process(target=lambda:child('computenode', metricq, lambda:metrics_computenode(), metric_interval_computenode))
+		p.start()
+		log('started computenode metrics process, pid [%d]' % p.pid)
+		children.append(p)
 
 
 	#--- define shutdown

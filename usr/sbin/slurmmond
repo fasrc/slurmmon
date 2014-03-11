@@ -22,7 +22,7 @@ DESCRIPTION
 OPTIONS
 	--metrics CATEGORY
 		Run the given CATEGORY of metrics.  This option may be used multiple 
-		times; all given categories will be run.  Choices, by category:
+		times; all given categories will be run.  Choices are:
 
 		To be run in one place, e.g. on primary slurmctrld:
 
@@ -36,7 +36,8 @@ OPTIONS
 		* computenode
 
 	--daemon
-		Run as a daemon instead of in the foreground as a child of the calling process.
+		Run as a daemon instead of in the foreground as a child of the calling 
+		process.
 
 	--conf CONFIGURATION_FILE
 		Use the given configuration file instead of /etc/slurmmon.conf.
@@ -58,9 +59,10 @@ OPTIONS
 		Print this help.
 
 EXAMPLES
-	To debug a CATEGORY without sending any metrics:
+	To debug a CATEGORY without actually sending any metrics, run the following 
+	and watch syslog:
 
-		$ ./usr/sbin/slurmmond -v -d -p --conf etc/slurmmon.conf --metrics CATEGORY
+		$ ./usr/sbin/slurmmond -v -d -p --conf ./etc/slurmmon.conf --metrics CATEGORY
 
 REQUIREMENTS
 	n/a
@@ -130,8 +132,18 @@ metrics (subject to change)
 	slurmmond_cores_in_reservations (CPU cores)
 """
 
-import sys, os, traceback, time, re, getopt, syslog, socket, signal, json, subprocess, multiprocessing
 
+import sys, os, traceback, time, re, getopt, syslog, socket, signal, json, subprocess, multiprocessing
+try:
+	import slurmmon
+except ImportError:
+	#try adding where it exists if this is being run out of the source tree
+	sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..', 'lib/python/site-packages')))
+	import slurmmon
+from slurmmon import util, nodes
+
+
+#default settings
 metrics = []
 daemon = False
 conf = '/etc/slurmmon.conf'
@@ -184,39 +196,39 @@ if len(metrics)==0:
 
 #--- config
 
-config = json.load(open(conf, 'r'))
+conf = json.load(open(conf, 'r'))
 
 #basic stuff
-metric_prefix = config.get('metric_prefix', '%s_' % PROGNAME)
+metric_prefix = conf.get('metric_prefix', '%s_' % PROGNAME)
 
 #partitions to which to send probe jobs
-probejob_partitions = [ x.encode('utf-8') for x in config.get('probejob_partitions', ())]
+probejob_partitions = [ x.encode('utf-8') for x in conf.get('probejob_partitions', ())]
 
 #probejob sbatch parameters
-probejob_default_J        = config.get('probejob_default_J'       , 'probejob').encode('utf-8')
-probejob_default_n        = config.get('probejob_default_n'       , 1)
-probejob_default_t        = config.get('probejob_default_t'       , 2)
-probejob_default_mem      = config.get('probejob_default_mem'     , 10)
-probejob_default_o        = config.get('probejob_default_o'       , '/dev/null').encode('utf-8')
-probejob_default_e        = config.get('probejob_default_e'       , '/dev/null').encode('utf-8')
-probejob_default_command  = config.get('probejob_default_command' , 'true').encode('utf-8')
-probejob_default_priority = config.get('probejob_default_priority', 999999999)
+probejob_default_J        = conf.get('probejob_default_J', 'probejob').encode('utf-8')
+probejob_default_n        = conf.get('probejob_default_n', 1)
+probejob_default_t        = conf.get('probejob_default_t', 2)
+probejob_default_mem      = conf.get('probejob_default_mem', 10)
+probejob_default_o        = conf.get('probejob_default_o', '/dev/null').encode('utf-8')
+probejob_default_e        = conf.get('probejob_default_e', '/dev/null').encode('utf-8')
+probejob_default_command  = conf.get('probejob_default_command' , 'true').encode('utf-8')
+probejob_default_priority = conf.get('probejob_default_priority', 999999999)
 
 #metric_interval_*
 #the time to sleep between metric collection runs
-metric_interval_sdiag        = config.get('metric_interval_sdiag'   ,     120)
-metric_interval_jobcount     = config.get('metric_interval_jobcount',     120)
-metric_interval_reservations = config.get('metric_interval_reservations', 120)
-metric_interval_probejob     = config.get('metric_interval_probejob',     120)
-metric_interval_computenode  = config.get('metric_interval_computenode',  120)
+metric_interval_sdiag        = conf.get('metric_interval_sdiag'   ,     120)
+metric_interval_jobcount     = conf.get('metric_interval_jobcount',     120)
+metric_interval_reservations = conf.get('metric_interval_reservations', 120)
+metric_interval_probejob     = conf.get('metric_interval_probejob',     120)
+metric_interval_computenode  = conf.get('metric_interval_computenode',  120)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds
-metric_fail_retry_interval = config.get('metric_fail_retry_interval', 120)
+metric_fail_retry_interval = conf.get('metric_fail_retry_interval', 120)
 
 #probejob_query_interval:
 #the time to wait between pokes to slurm to see if the probe job is no longer pending
-probejob_query_interval = config.get('probejob_query_interval', 10)
+probejob_query_interval = conf.get('probejob_query_interval', 10)
 
 
 
@@ -224,13 +236,6 @@ probejob_query_interval = config.get('probejob_query_interval', 10)
 
 def log(msg):
 	syslog.syslog(msg)
-
-def shQuote(text):
-	"""quote the given text so that it is a single, safe string in sh code.
-
-	Note that this leaves literal newlines alone (sh and bash are fine with that, but other tools may mess them up and need to do some special handling on the output of this function).
-	"""
-	return "'%s'" % text.replace("'", r"'\''")
 
 def daemonize(chdir='/'):
 	"""Daemonize using the standard setsid/fork method.
@@ -275,130 +280,6 @@ def daemonize(chdir='/'):
 		se = file('/dev/null', 'a+', 0)
 		os.dup2(se.fileno(), sys.stderr.fileno())
 
-def run_command(command, shell=False):
-	p = subprocess.Popen(command, shell=shell,
-		stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-	stdout, stderr = [data.strip() for data in p.communicate()]
-	if p.returncode != 0 or stderr != '':
-		raise Exception("'%s' failed with " +
-			'non-zero returncode [%d] and/or non-empty stderr [%r]' % (
-			' '.join(command), p.returncode, stderr,
-		))
-
-	return stdout
-
-def getHostname():
-	"""return the short hostname of this host"""
-	return socket.gethostname().split('.')[0]
-
-
-#computnode -- slurm allocations
-
-def getAllocations(hostname, method=2):
-	"""return a two-item list [number of allocated cores (int), allocated mem in kB (int)]"""
-
-	if method==1:
-		#round-about: get all the jobs using the host, and from the jobs get the allocations
-
-		sh = r"squeue -h -o '%%A' -t R -w %s | xargs -n 1 scontrol -dd show job | grep -P '\bNodes='" % shQuote(hostname)
-		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
-		stdout = p.communicate()[0].strip(); rc = p.returncode
-		if rc!=0: raise Exception('non-zero exit status: %d' % str(sys.exit((rc,128-rc)[rc<0])))
-
-		cores = 0
-		memory = 0
-
-		for line in stdout.split('\n'):
-			#total up CPU_ID counts and Mem for each node entry that matches the host of interest
-			#some possible lines:
-			#	Nodes=holy2a06104 CPU_IDs=10 Mem=4000
-			#	Nodes=holy2a13303 CPU_IDs=0-63 Mem=10000
-			#	Nodes=holy2a14208 CPU_IDs=15,28-29,31,35,45,59-60 Mem=800
-			
-			Nodes, CPU_IDs, Mem = line.strip().split()
-			
-			if Nodes.split('=')[1]==hostname:
-				for x in CPU_IDs.split('=')[1].split(','):
-					if '-' not in x:
-						cores += 1
-					else:
-						start, end = x.split('-')
-						cores += int(end) - int(start) + 1
-
-				memory += int(Mem.split('=')[1]) * 1024  #this factor might need work -- in general slurm sometimes uses 2**10 and sometimes uses 10**3
-
-		return cores, memory
-
-	if method==2:
-		#more direct: use the numbers from scontrol show node
-
-		sh = r"scontrol show node %s" % shQuote(hostname)
-		p = subprocess.Popen(sh, shell=True, stdout=subprocess.PIPE)
-		stdout = p.communicate()[0].strip(); rc = p.returncode
-		if rc!=0: raise Exception('non-zero exit status: %d' % str(sys.exit((rc,128-rc)[rc<0])))
-
-		cores = None
-		memory = None
-
-		#extract CPUAlloc and AllocMem
-		for kv in stdout.split():
-			if kv.startswith('CPUAlloc'):
-				cores = int(kv.split('=')[1])
-				if memory is not None:
-					break
-			elif kv.startswith('AllocMem'):
-				memory = int(kv.split('=')[1]) * 1024
-				if cores is not None:
-					break
-
-		return cores, memory
-
-	raise Exception("internal error: invalid method for getAllocations()")
-
-
-#computnode -- resource utilization
-
-def getCPU():
-	"""return a two-item list [total number of cores (int), number of running tasks (int)]
-	
-	The number of running tasks is from the 4th colum of /proc/loadavg;
-	it's decremented by one in order to account for this process asking for it.
-	"""
-	#running processes
-	with open('/proc/loadavg','r') as f:
-		#e.g. 52.10 52.07 52.04 53/2016 54847 -> 53-1 = 52
-		used = max(int(f.read().split()[3].split('/')[0]) - 1, 0)
-	
-	with open('/proc/cpuinfo','r') as f:
-		total = 0
-		for l in f.readlines():
-			if l.startswith('processor'):
-				total += 1
-	
-	return total, used
-
-def getMem():
-	"""return a two-item list [total memory in kB (int), used memory in kB (int)]
-
-	The used memory does not count Buffers, Cached, and SwapCached.
-	"""
-	#in kB
-	with open('/proc/meminfo','r') as f:
-		total = 0
-		free = 0
-
-		for line in f.readlines():
-			fields = line.split()
-			if fields[0]=='MemTotal:':
-				total = int(fields[1])
-			if fields[0] in ('MemFree:', 'Buffers:', 'Cached:', 'SwapCached'):
-				free += int(fields[1])
-
-		used = total - free
-
-		return total, used
-
 
 
 #--- misc
@@ -412,7 +293,7 @@ re_nonalphanum = re.compile(r'[^a-zA-Z0-9]+')
 #these yield tuples representing metrics, and they do not loop
 
 def metrics_sdiag():
-	stdout = run_command(['sdiag'])
+	stdout = util.runsh(['sdiag'])
 	##e.g.
 	#*******************************************************
 	#sdiag output at Mon Dec  9 16:45:13 2013
@@ -507,7 +388,7 @@ def metrics_jobcount():
 		('%sjobcount_max_pending_one_user' % metric_prefix, "squeue -h -o '%u' -t PD | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 		('%sjobcount_max_running_one_user' % metric_prefix, "squeue -h -o '%u' -t R  | sort | uniq -c | sort -n | tail -n 1 | awk '{print $1}'"),
 	):
-		stdout = run_command(sh, shell=True)
+		stdout = util.runsh(sh).strip()
 		if stdout == '':
 			stdout = '0'
 
@@ -515,7 +396,7 @@ def metrics_jobcount():
 		yield (name, stdout, 'uint32', 'jobs', PROGNAME, name, name)
 
 def metrics_reservations():
-	stdout = run_command(['scontrol', 'show', 'reservations', '-o'])
+	stdout = util.runsh(['scontrol', 'show', 'reservations', '--oneliner']).strip()
 
 	reserved_cores = 0
 	if 'No reservations in the system' in stdout:
@@ -565,8 +446,8 @@ def metrics_probejob(
 
 	sh = 'sbatch'
 	for x in optargs:
-		sh += ' %s %s' % (shQuote(x[0]), shQuote(str(x[1])))
-	sh += ' --wrap %s' % shQuote(command)
+		sh += ' %s %s' % (util.shquote(x[0]), util.shquote(str(x[1])))
+	sh += ' --wrap %s' % util.shquote(command)
 
 
 	#--- submit job
@@ -598,7 +479,7 @@ def metrics_probejob(
 
 	#--- update its priority
 
-	sh = 'sudo -u slurm scontrol update JobId=%s Priority=%s' % (shQuote(str(jobid)), shQuote(str(priority)))
+	sh = 'sudo -u slurm scontrol update JobId=%s Priority=%s' % (util.shquote(str(jobid)), util.shquote(str(priority)))
 	if debug:
 		log('DEBUG: updating probejob priority with [%r]' % sh)
 
@@ -616,7 +497,7 @@ def metrics_probejob(
 	#I wish I had a way to actually wait on the job instead of having to poke slurm in a loop
 	#"scontrol wait_job JOBID" doesn't work, it just says "scontrol: Job JOBID no longer running", even while PENDING
 	#(haven't decided if squeue or sacct is better here)
-	sh = "squeue -h -o '%T' -t ALL -j " + shQuote(str(jobid))
+	sh = "squeue -h -o '%T' -t ALL -j " + util.shquote(str(jobid))
 
 	#progress:
 	#	0 ~ submitted
@@ -680,9 +561,15 @@ def metrics_probejob(
 	yield ('%sprobejob_pendtime_%s' % (metric_prefix, partition), s_pend, 'uint32', 'seconds', PROGNAME, s, s)
 
 def metrics_computenode():
-	cores_total , cores_used  = getCPU()
-	memory_total, memory_used = getMem()
-	cores_allocated, memory_allocated = getAllocations(getHostname())
+	n = nodes.Node(NodeName=util.get_hostname())
+
+	#note that these may raise KeyError or be None
+	cores_total = n['OS_Cores_Total']
+	cores_used = n['OS_Cores_Used']
+	memory_total = n['OS_Memory_Total']
+	memory_used = n['OS_Memory_Used']
+	cores_allocated = n['CPUAlloc']
+	memory_allocated = n['AllocMem_kB']
 
 	#(NAME, VALUE, TYPE, UNITS, GROUP, TITLE, DESCRIPTION)
 	
@@ -839,7 +726,7 @@ if __name__=='__main__':
 				msg += 'PRETEND: '
 			msg += 'sending metric [%s]' % str(m)
 			log(msg)
-		command = [
+		shv = [
 			'gmetric',
 			'--name', str(m[0]), '--value', str(m[1]),
 			'--type', str(m[2]), '--units', str(m[3]),
@@ -849,6 +736,6 @@ if __name__=='__main__':
 			'--tmax', '86400'
 		]
 		if verbose:
-			print ' '.join(command)
+			print ' '.join(shv)
 		if not pretend:
-			run_command(command)
+			util.runsh(shv)

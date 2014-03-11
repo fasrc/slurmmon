@@ -591,12 +591,12 @@ def metrics_computenode():
 	name = '%smemory_allocated' % metric_prefix
 	yield (name, memory_allocated, 'uint32', 'kB', PROGNAME, name, name)
 	
-	name = '%spcu_utilization' % metric_prefix
+	name = '%spcpu_utilization' % metric_prefix
 	yield (name, float(cores_used)/cores_total * 100, 'float', 'percent', PROGNAME, name, name)
 	name = '%spmem_utilization' % metric_prefix
 	yield (name, float(memory_used)/memory_total * 100, 'float', 'percent', PROGNAME, name, name)
 	
-	name = '%spcu_allocation' % metric_prefix
+	name = '%spcpu_allocation' % metric_prefix
 	yield (name, float(cores_allocated)/cores_total * 100, 'float', 'percent', PROGNAME, name, name)
 	name = '%spmem_allocation' % metric_prefix
 	yield (name, float(memory_allocated)/memory_total * 100, 'float', 'percent', PROGNAME, name, name)

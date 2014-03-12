@@ -6,10 +6,16 @@
 #make this match the spec!!!
 version=0.0.2
 
-mkdir /tmp/slurmmon-$version
-rsync -av --exclude /slurmmon*.tar.bz2 --exclude /RPMS/ --exclude /.git/ ./ /tmp/slurmmon-$version/
+trap "rm -fr '/tmp/$USER/slurmmon-$version'" EXIT
+
+mkdir -p "/tmp/$USER/slurmmon-$version"
+rsync -av \
+	--exclude /slurmmon*.tar.bz2 \
+	--exclude /RPMS/ \
+	--exclude /.git/ \
+	--exclude /lib/python/site-packages/slurmmon/*.pyc \
+	./ "/tmp/$USER/slurmmon-$version/"
 tar --owner root --group root --numeric-owner -cjvf slurmmon-$version.tar.bz2 -C /tmp slurmmon-$version
-rm -fr /tmp/slurmmon-$version
 /bin/cp -af slurmmon-$version.tar.bz2 ~/rpmbuild/SOURCES/
 
 rpmbuild -ba --target=noarch slurmmon.spec

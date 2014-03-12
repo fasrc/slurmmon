@@ -47,6 +47,16 @@ It runs daemons that query Slurm about scheduling, submit test jobs, and send me
 It includes utilities to make various other plots, too.
 This subpackages installs the slurmmon summary web pages.
 
+%package python
+Summary: slurmmon python library
+Group: System Environment/Base
+Prefix: /usr/lib/python2.6/site-packages
+%description python
+slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
+It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
+It includes utilities to make various other plots, too.
+This subpackages installs the slurmmon summary web pages.
+
 
 %prep
 
@@ -63,6 +73,8 @@ mkdir -p %{buildroot}/
 for d in etc usr var; do
 	rsync -av "$d"/ %{buildroot}/"$d"/
 done
+mkdir -p %{buildroot}/usr/lib/python2.6/site-packages/
+rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages/
 
 
 %files daemon
@@ -70,6 +82,7 @@ done
 /etc/init.d/slurmmond
 /etc/init.d/slurmmond-computenode
 /usr/sbin/slurmmond
+/usr/sbin/whitespace_report.py
 %config(noreplace)
 /etc/slurmmon.conf
 
@@ -83,3 +96,7 @@ done
 /var/www/html/slurmmon/index.psp
 %config(noreplace)
 /etc/slurmmon.conf
+
+%files python
+%defattr(-,root,root,-)
+/usr/lib/python2.6/site-packages/*

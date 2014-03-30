@@ -10,8 +10,8 @@ config = json.load(open(conf,'r'))
 
 #hack for FASRC -- add "?cluster=dev" to the url to see status on the test cluster
 if form.get('cluster', None)=='dev':
-	ploturl_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/harvard_other'
-	ploturl_cluster = 'vm'
+	ploturl_gmetaurl = 'http://status.rc.fas.harvard.edu/ganglia/holyoke_other'
+	ploturl_cluster = 'holyoke_service'
 	ploturl_host = 'slurm-test.rc.fas.harvard.edu'
 else:
 	#let these raise KeyError, since they're all required
@@ -40,7 +40,7 @@ def buildoptions(var):
 	return s
 
 def graphurl(name):
-	return '%s/graph.php?g=%s&r=%s&z=%s"' % (ploturl_gmetaurl, name, current['r'], current['z'])
+	return '%s/graph.php?g=%s&c=%s&h=%s&r=%s&z=%s"' % (ploturl_gmetaurl, name, current['c'], current['h'], current['r'], current['z'])
 	
 
 #--- ganglia web vars

@@ -1,117 +1,19 @@
-## Overview
+Slurmmon is a system for gaining insight into [Slurm](http://www.schedmd.com/) and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+Features include:
 
-Slurmmon is a system for gathering and plotting data about [Slurm](http://www.schedmd.com/) scheduling and job characteristics.
-It currently simply sends the data to ganglia, but it includes some custom reports and a web page for an organized summary.
+* trending all the scheduler performance diagnostics (`sdiag` output)
+* measuring job turnaround time of *probe jobs*, as a bellwether of scheduling issues
+* creating daily *whitespace* reports -- identifying specific users and jobs with low utilization of their allocations (the jobs that lead to the dreaded *whitespace* gap in plots of total resources vs used resources)
 
-It collects all the data from `sdiag` as well as total counts of running and pending jobs in the system and the maximum such values for any single user.
-It can also submit *probe* jobs to various partitions in order to trend the times spent pending in them, which is often a good bellwether of scheduling problems.
+Slurmmon is meant to run on a RHEL/CentOS/SL 6 based system and currently uses Ganglia for data collection and Apache/mod_python for reporting.
+The components are:
 
-There are three components to slurmmon:
+* [slurmmon-daemon](RPMS/slurmmon-daemon-0.0.2-fasrc01.noarch.rpm?raw=true) -- the daemons that query Slurm and send data to Ganglia <!-- using `gmetric` -->
+* [slurmmon-ganglia](RPMS/slurmmon-ganglia-0.0.2-fasrc01.noarch.rpm?raw=true) -- the Ganglia custom reports that use php to stack raw rrd data <!-- (to be dropped in a `graph.d` directory in some Ganglia installation) -->
+* [slurmmon-web](RPMS/slurmmon-web-0.0.2-fasrc01.noarch.rpm?raw=true) -- a set of web pages that organize all the reports and relevant plots <!-- (which can run on an independent web server) -->
+* [slurmmon-python](RPMS/slurmmon-python-0.0.2-fasrc01.noarch.rpm?raw=true) -- a general python interface to Slurm, using lazy evaluation
 
-* [slurmmon-daemon](RPMS/slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true) -- the daemons that run Slurm commands such as `sdiag`, `squeue`, etc., submit probe jobs (if configured), and send data to ganglia using `gmetric`
-* [slurmmon-ganglia](RPMS/slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true) -- the ganglia custom reports that use php to stack rrd data (to be dropped in a `graph.d` directory in some ganglia installation)
-* [slurmmon-web](RPMS/slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true) -- a psp web page that organizes all the reports and relevant plots (which can run on an independent web server)
-
-Here is a screenshot from the production cluster at FASRC:
+Here is a screenshot of the basic diagnostic report from the production cluster at FASRC:
 
 ![slurmmon screenshot](slurmmon_screenshot_small.png "slurmmon screenshot")
-
-
-
-## Installation
-
-### Requirements
-
-Slurmmon is meant to run on a RHEL/CentOS/SL 6 based system (e.g. 6.4).
-You'll of course need Slurm, and you'll also need a ganglia installation and an apache webserver running mod_python.
-
-
-### Create the `slurmmon` user
-
-The daemons run as a user named `slurmmon`.
-Assuming you'll be running probe jobs, this user should be able to submit jobs to all the partitions being probed.
-Therefore, since it should be a cluster account, the rpms do not make this user -- you have to.
-<!-- only need stuff to be able to run job: login shell needed, but home dir not -->
-
-Additionally, since slurmmon doesn't want the probe jobs to suffer hits to fairshare due to the constant job turnover, it increases the priority of each job, and that currently requires sudo.
-Thus, add something like this in the sudo configuration:
-
-```
-slurmmon HOSTNAME=(slurm) NOPASSWD: /usr/bin/scontrol update JobId\=* Priority\=*
-```
-
-where `HOSTNAME` is the node where you're running the daemons.
-(Note that the `*` in the about could match multiple words, it's not perfect.)
-If you're not running probe jobs, you don't need the sudo config.
-<!-- if sudo is not configured, you'll get error like: Dec  9 13:43:45 slurm-test slurmmond(probejob-MYQUEUE)[28115]: metrics for [slurmmond(probejob-MYQUEUE)] failed with message [job priority update ["sudo scontrol update JobId='153' Priority='999999999'"] failed with non-zero returncode [1] and/or non-empty stderr ['sudo: no tty present and no askpass program specified']] -->
-
-
-
-
-### Install the RPMs
-
-#### slurmmon-daemon
-
-Identify a Slurm client host on which to run the daemons that query slurm.
-This host should also be in ganglia (`gmetric` needs to work), and it should be same host where the `slurmmon` user can run sudo to change job priorities.
-
-Install [slurmmon-daemon-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-daemon-0.0.1-fasrc01.noarch.rpm?raw=true).
-
-Configure it by editing `/etc/slurmmon.conf`, which is json.
-Specifically, set `probejob_partitions` to be the set of names of partitions to which you want to send probe jobs.
-(The default is particular to FASRC.)
-
-Start the service:
-
-``` bash
-service slurmmond start
-```
-
-and `chkconfig` it on:
-
-``` bash
-chkconfig slurmmond on
-```
-
-
-#### slurmmon-ganglia
-
-Identify a host running `ganglia-web`, and a `graph.d` directory into which to put the slurmmon custom reports.
-By default the rpm will use `/var/www/ganglia/graph.d`, but this is an available *Relocation* in the rpm.
-
-Install [slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-ganglia-0.0.1-fasrc01.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
-
-
-#### slurmmon-web
-
-Identify a host running httpd and mod_python.
-By default, the package installs files to `/etc/httpd/conf.d` and `/var/www/html/slurmmon`, but these are available *Relocation*s in the rpm.
-
-Install [slurmmon-web-0.0.1-fasrc01.noarch.rpm](RPMS/slurmmon-web-0.0.1-fasrc01.noarch.rpm?raw=true), possible using `--prefix` to put the files in custom locations.
-
-Configure it by editing `/etc/slurmmon.conf`, which is json.
-Specifically, set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to construct a url to reach the ganglia plots. 
-
-Reload the web server config:
-
-``` bash
-service httpd reload
-```
-
-You should now see plots at `http://HOSTNAME/slurmmon/` where `HOSTNAME` is this host.
-
-
-
-## FAQ
-
-### Real jobs are pending a long time but the probe jobs run quickly, why?
-
-The probe jobs are meant to represent what a brand new user running a tiny test job would experience.
-The default parameters define a very short, small job (two minutes and 10 MB at the time of writing).
-The code also raises the priority of these jobs so that there is no hit to fairshare due to the constant probe submissions.
-
-### Why are the monitoring daemon processes piling up?
-
-They're not really (usually).
-The "daemon" is actually several processes (four at the time of writing), running in parallel using python's `multiprocessing` feature, so they have the same command line.
-The main daemon will be owned by init, with the other daemons children of the main one.

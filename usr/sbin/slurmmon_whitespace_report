@@ -6,15 +6,25 @@
 
 """\
 NAME
-	whitespace_report - report poor utilization vs. allocation ratios
+	slurmmon_whitespace_report - report poor utilization vs. allocation ratios
 
 SYNOPSIS
-	whitespace_report
+	slurmmon_whitespace_report
 
 DESCRIPTION
 	n/a
 
 OPTIONS
+	-o, --output-dir DIRECTORY
+		The directory into which to write the report and supporting webpages.  
+		The default is the `web_root'/whitespace, where `web_root' is from 
+		/etc/slurmmon.conf, or, if that config file is not available, just the 
+		current working directory.
+
+		Note that within this directory, this script makes a time-stamped 
+		subdirectory and updates a symbolic link named `latest' that points to 
+		it.
+
 	-h, --help
 		Print this help.
 
@@ -30,7 +40,7 @@ AUTHOR
 """
 
 
-import sys, os, time, datetime, getopt
+import sys, os, time, datetime, getopt, json
 try:
 	import slurmmon
 except ImportError:
@@ -40,7 +50,7 @@ except ImportError:
 from slurmmon import config, jobs, nodes
 
 
-def write_report(completed_jobs_cpu=True, live_nodes_cpu=True):
+def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 	#=== config
 
 	#time range in which to look, if applicable (historical vs live data)
@@ -53,11 +63,14 @@ def write_report(completed_jobs_cpu=True, live_nodes_cpu=True):
 
 	page_title = 'slurm whitespace -- poor allocation vs utilization'
 	page_filename = 'index.html'
-	jobs_dirname = 'jobs'
+	jobs_dirname = os.path.join(output_dir, 'jobs')
 
 
 
 	#=== intro
+	
+	os.mkdir(output_dir)
+	os.mkdir(jobs_dirname)
 
 	html = '<html>'
 	html += '<head><title>%s</title>' % page_title
@@ -175,22 +188,51 @@ def write_report(completed_jobs_cpu=True, live_nodes_cpu=True):
 	html += '</body>'
 	html += '</html>'
 	
-	with open(page_filename,'w') as f:
+	with open(os.path.join(output_dir,page_filename),'w') as f:
 		f.write(html)
 
 
 if __name__=='__main__':
+	conf = '/etc/slurmmon.conf'
+	output_dir = None
+
 	try:
-		opts, args = getopt.gnu_getopt(sys.argv[1:], 'h', ('help',))
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'o:h', ('output-dir:', 'help',))
 	except getopt.GetoptError, e:
 		sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
 		sys.exit(1)
 	for opt, optarg in opts:
-		if opt in ('-h', '--help'):
+		if opt in ('-o', '--output-dir'):
+			output_dir = optarg
+			
+		elif opt in ('-h', '--help'):
 			sys.stdout.write(__doc__)
 			sys.exit(0)
+	
+	#the timestamp of this report
+	tstart = time.time()
+	tstartstr = time.ctime(tstart)
+	tdirname = time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime(tstart))
+	
+	#determine actual output directory
+	if output_dir is None:
+		conf = json.load(open(conf, 'r'))
+		web_root = conf.get('web_root')
+		if web_root is not None:
+			output_dir = os.path.join(web_root.encode('utf-8'), 'whitespace')
+		else:
+			output_dir = os.getcwd()
 
+	#write the report
 	write_report(
+		os.path.join(output_dir, tdirname),
 		completed_jobs_cpu=True,
 		live_nodes_cpu=True,
 	)
+
+	#update the symlink for the latest report
+	try:
+		os.remove(os.path.join(output_dir, 'latest'))
+	except (OSError, IOError):
+		pass
+	os.symlink(tdirname, 'latest')

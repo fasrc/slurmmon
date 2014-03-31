@@ -1,6 +1,6 @@
 Name: slurmmon
 Version: 0.0.2
-Release: fasrc01
+Release: fasrc03
 Summary: gather and plot data about Slurm
 Packager: Harvard FAS Research Computing -- John Brunelle <john_brunelle@harvard.edu>
 Group: System Environment/Base
@@ -10,9 +10,8 @@ Source: %{name}-%{version}.tar.bz2
 Prefix: /
 
 %description
-slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
-It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
-It includes utilities to make various other plots, too.
+Slurmmon is a system for gaining insight into Slurm and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
 
 
 %package daemon
@@ -21,20 +20,18 @@ Group: System Environment/Base
 Prefix: /etc
 Prefix: /usr
 %description daemon
-slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
-It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
-It includes utilities to make various other plots, too.
-This sub-package installs the slurmmon daemon that collects data.
+Slurmmon is a system for gaining insight into Slurm and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+This subpackage is the slurmmon daemon that collects data.
 
 %package ganglia
 Summary: slurmmon ganglia reports
 Group: System Environment/Base
 Prefix: /var/www/ganglia/graph.d
 %description ganglia
-slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
-It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
-It includes utilities to make various other plots, too.
-This subpackage installs the slurmmon ganglia reports.
+Slurmmon is a system for gaining insight into Slurm and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+This subpackage is the slurmmon ganglia reports.
 
 %package web
 Summary: slurmmon summary web pages
@@ -42,20 +39,18 @@ Group: System Environment/Base
 Prefix: /etc/httpd/conf.d
 Prefix: /var/www/html/slurmmon
 %description web
-slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
-It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
-It includes utilities to make various other plots, too.
-This subpackages installs the slurmmon summary web pages.
+Slurmmon is a system for gaining insight into Slurm and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+This subpackage is the slurmmon web frontend.
 
 %package python
 Summary: slurmmon python library
 Group: System Environment/Base
 Prefix: /usr/lib/python2.6/site-packages
 %description python
-slurmmon is a system for monitoring Slurm scheduling and workload characteristics.
-It runs daemons that query Slurm about scheduling, submit test jobs, and send metrics to ganglia.
-It includes utilities to make various other plots, too.
-This subpackages installs the slurmmon summary web pages.
+Slurmmon is a system for gaining insight into Slurm and the jobs it runs.
+It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+This subpackages is the general python library for interfacing with Slurm.
 
 
 %prep
@@ -71,7 +66,7 @@ This subpackages installs the slurmmon summary web pages.
 echo %{buildroot} | grep -q %{name}-%{version} && rm -rf %{buildroot}
 mkdir -p %{buildroot}/
 for d in etc usr var; do
-	rsync -av "$d"/ %{buildroot}/"$d"/
+	rsync -av --exclude .gitignore "$d"/ %{buildroot}/"$d"/
 done
 mkdir -p %{buildroot}/usr/lib/python2.6/site-packages/
 rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages/
@@ -82,9 +77,8 @@ rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages
 /etc/init.d/slurmmond
 /etc/init.d/slurmmond-computenode
 /usr/sbin/slurmmond
-/usr/sbin/whitespace_report.py
-%config(noreplace)
-/etc/slurmmon.conf
+/usr/sbin/slurmmon_whitespace_report
+%config(noreplace) /etc/slurmmon.conf
 
 %files ganglia
 %defattr(-,apache,apache,-)
@@ -92,10 +86,12 @@ rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages
 
 %files web
 %defattr(-,root,root,-)
-/etc/httpd/conf.d/slurmmon.conf
 /var/www/html/slurmmon/index.psp
-%config(noreplace)
-/etc/slurmmon.conf
+/var/www/html/slurmmon/whitespace/index.html
+/var/www/html/slurmmon/whitespace/0000-00-00_00:00:00/index.html
+%config(noreplace) /var/www/html/slurmmon/whitespace/latest
+%config(noreplace) /etc/httpd/conf.d/slurmmon.conf
+%config(noreplace) /etc/slurmmon.conf
 
 %files python
 %defattr(-,root,root,-)

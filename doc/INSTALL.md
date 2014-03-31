@@ -3,7 +3,7 @@
 Slurmmon is meant to run on a RHEL/CentOS/SL 6 based system (e.g. 6.4).
 You'll of course need Slurm, and you'll also need a Ganglia installation and an Apache webserver running mod_python.
 
-Several slurmmon components, such as submitting probe jobs and gathering allocation utilization numbers, are optional.
+Several slurmmon components, such as submitting probe jobs and gathering allocation utilization numbers (a.k.a. *whitespace* reports), are optional.
 
 
 
@@ -45,6 +45,7 @@ Install:
 Configure it by editing `/etc/slurmmon.conf`, which is json.
 Specifically, set `probejob_partitions` to be the set of partitions to which you want to send probe jobs.  (Or set it to be empty to not use this feature.)
 The default is particular to FASRC.
+If you'll be generating *whitespace* reports, set `web_root` to the location shared with the web server.
 
 Start the service:
 
@@ -61,7 +62,8 @@ chkconfig slurmmond on
 #### The compute node `slurmmond-computenode`s
 
 If you want to monitor job allocation utilization and generate the *whitespace* reports of cluster efficiency, each compute node needs to run slurmmon daemons, too.
-They are provided by the same rpm package, but the service is named differently and no configuration is necessary.
+They are provided by the same rpm package, but the service is named differently and no configuration is currently needed.
+The only requirement is that `gmetric` must work on them.
 On each compute node:
 
 Install:
@@ -93,17 +95,21 @@ Install [slurmmon-ganglia-0.0.2-fasrc01.noarch.rpm](RPMS/slurmmon-ganglia-0.0.2-
 ### slurmmon-web
 
 Identify a host running httpd and mod_python.
-By default, the package installs files to `/etc/httpd/conf.d` and `/var/www/html/slurmmon`, but these are available *Relocation*s in the rpm.
+If you'll be generating *whitespace* reports, also identify a `web_root` on a shared filesystem that your webserver can read and to which the `slurmmon_whitespace_report` cron job can write.
+(See below about setting up this cron job -- usually it'll be on the same host as the main slurmmond service.)
 
 Install:
 
 * [slurmmon-web-0.0.2-fasrc01.noarch.rpm](RPMS/slurmmon-web-0.0.2-fasrc01.noarch.rpm?raw=true)
 * [slurmmon-python-0.0.2-fasrc01.noarch.rpm](RPMS/slurmmon-python-0.0.2-fasrc01.noarch.rpm?raw=true)
 
-possible using `--prefix` or `--relocate` to put the files in custom locations.
+using `--relocate` to change `/var/www/html/slurmmon` to your chosen `web_root`.
+(The default is fine if you're not generating *whitespace* reports.)
 
 Configure it by editing `/etc/slurmmon.conf`, which is json.
-Specifically, set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to construct a url to reach the Ganglia plots. 
+Specifically, set `web_root` to whatever you used above and set `ploturl_gmetaurl`, `ploturl_cluster`, and `ploturl_host` to what's needed to construct a url to reach the Ganglia plots. 
+
+If you're generating *whitespace* reports, you may consider editing `/etc/httpd/conf.d/slurmmon.conf` and putting the url `slurmmon/whitespace` behind an auth wall, since it does call out specific users about "poor" jobs and report job details.
 
 Reload the web server config:
 
@@ -112,3 +118,16 @@ service httpd reload
 ```
 
 You should now see plots at `http://HOSTNAME/slurmmon/` where `HOSTNAME` is this host.
+
+
+
+## Setup *whitespace* reporting (optional)
+
+There is a script named `slurmmon_whitespace_report` that comes with the `slurmmon-daemon` package.
+On the host running the main `slurmmond` service (and assuming it has a `/etc/slurmmon.conf` specifying a proper `web_root`), add a cron job similar to the following:
+
+``` cron
+00 8 * * * /usr/sbin/slurmmon_whitespace_report
+```
+
+The latest report will then always be available at `http://HOSTNAME/slurmmon/whitespace/` where `HOSTNAME` is the web host above.

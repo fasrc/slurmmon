@@ -14,6 +14,11 @@ The components are:
 * [slurmmon-web](RPMS/slurmmon-web-0.0.2-fasrc01.noarch.rpm?raw=true) -- a set of web pages that organize all the reports and relevant plots <!-- (which can run on an independent web server) -->
 * [slurmmon-python](RPMS/slurmmon-python-0.0.2-fasrc01.noarch.rpm?raw=true) -- a general python interface to Slurm, using lazy evaluation
 
+See the `doc` directory for more information, specifically:
+
+* [INSTALL](doc/INSTALL.md) for initial installation and setup
+* [FAQ](doc/FAQ.md) for answers to common questions and other details
+
 Here is a screenshot of the basic diagnostic report from the production cluster at FASRC:
 
 ![slurmmon screenshot](slurmmon_screenshot_small.png "slurmmon screenshot")

@@ -5,6 +5,7 @@
 """slurmmon job handling"""
 
 
+import sys
 import slurmmon
 from slurmmon import config, util
 

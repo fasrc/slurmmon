@@ -15,7 +15,7 @@ rsync -av \
 	--exclude /.git/ \
 	--exclude /lib/python/site-packages/slurmmon/*.pyc \
 	./ "/tmp/$USER/slurmmon-$version/"
-tar --owner root --group root --numeric-owner -cjvf slurmmon-$version.tar.bz2 -C /tmp slurmmon-$version
+tar --owner root --group root --numeric-owner -cjvf slurmmon-$version.tar.bz2 -C /tmp/$USER slurmmon-$version
 /bin/cp -af slurmmon-$version.tar.bz2 ~/rpmbuild/SOURCES/
 
 rpmbuild -ba --target=noarch slurmmon.spec

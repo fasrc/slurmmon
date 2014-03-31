@@ -39,8 +39,8 @@ This host should be in Ganglia (`gmetric` needs to work), and, if you'll be runn
 
 Install:
 
-* [slurmmon-daemon-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-daemon-0.0.2-fasrc03.noarch.rpm?raw=true)
-* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-daemon-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-daemon-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
 
 Configure it by editing `/etc/slurmmon.conf`.
 Specifically, set `probejob_partitions` to be the set of partitions to which you want to send probe jobs.  (Or set it to be empty to not use this feature.)
@@ -68,8 +68,8 @@ On each compute node:
 
 Install:
 
-* [slurmmon-daemon-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-daemon-0.0.2-fasrc03.noarch.rpm?raw=true)
-* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-daemon-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-daemon-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
 
 Start the service:
 
@@ -89,7 +89,7 @@ chkconfig slurmmond-computenode on
 Identify a host running `ganglia-web`, and a `graph.d` directory into which to put the slurmmon custom reports.
 By default the rpm will use `/var/www/ganglia/graph.d`, but this is an available *Relocation* in the rpm.
 
-Install [slurmmon-ganglia-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-ganglia-0.0.2-fasrc03.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
+Install [slurmmon-ganglia-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-ganglia-0.0.2-fasrc03.noarch.rpm?raw=true), possibly using `--prefix` to put the files in a custom location.
 
 
 ### slurmmon-web
@@ -100,8 +100,8 @@ If you'll be generating *whitespace* reports, also identify a `web_root` on a sh
 
 Install:
 
-* [slurmmon-web-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-web-0.0.2-fasrc03.noarch.rpm?raw=true)
-* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-web-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-web-0.0.2-fasrc03.noarch.rpm?raw=true)
+* [slurmmon-python-0.0.2-fasrc03.noarch.rpm](../RPMS/slurmmon-python-0.0.2-fasrc03.noarch.rpm?raw=true)
 
 using `--relocate` to change `/var/www/html/slurmmon` to your chosen `web_root`.
 (The default is fine if you're not generating *whitespace* reports.)

@@ -235,4 +235,4 @@ if __name__=='__main__':
 		os.remove(os.path.join(output_dir, 'latest'))
 	except (OSError, IOError):
 		pass
-	os.symlink(tdirname, 'latest')
+	os.symlink(tdirname, os.path.join(output_dir,'latest'))

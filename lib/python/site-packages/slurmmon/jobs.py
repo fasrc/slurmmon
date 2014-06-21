@@ -223,6 +223,17 @@ class Job(util.LazyDict):
 
 #--- job retrieval
 
+def _yield_raw_sacct_job_lines(state='COMPLETED', starttime=None, endtime=None):
+	"""Return an iterator that yields lines from sacct."""
+	shv = ['sacct', '--allusers', '--noheader', '--parsable2', '--format', _sacct_format_parsable]
+	if state is not None:
+		shv.extend(['--state', state])
+	if starttime is not None:
+		shv.extend(['--starttime', starttime.strftime('%m/%d-%H:%M')])
+	if endtime is not None:
+		shv.extend(['--endtime', endtime.strftime('%m/%d-%H:%M')])
+	return util.runsh_i(shv)
+
 def _yield_raw_sacct_job_text_blocks(state='COMPLETED', starttime=None, endtime=None):
 	"""Yields multi-line strings of sacct text for each job.
 
@@ -232,20 +243,10 @@ def _yield_raw_sacct_job_text_blocks(state='COMPLETED', starttime=None, endtime=
 	starttime and endtime should be datetime objects.
 	"""
 	
-	shv = ['sacct', '--allusers', '--noheader', '--parsable2', '--format', _sacct_format_parsable]
-
-	if state is not None:
-		shv.extend(['--state', state])
-	if starttime is not None:
-		shv.extend(['--starttime', starttime.strftime('%m/%d-%H:%M')])
-	if endtime is not None:
-		shv.extend(['--endtime', endtime.strftime('%m/%d-%H:%M')])
-	
 	#this will be the text that's yielded
 	text = ''
 
-	#for line in open('_fake_data/sacct_alljobs_parsable.out').readlines():
-	for line in util.runsh_i(shv):
+	for line in _yield_raw_sacct_job_lines(state=state, starttime=starttime, endtime=endtime):
 		if line.startswith('|'):
 			text += line
 		else:

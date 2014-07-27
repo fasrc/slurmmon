@@ -24,6 +24,6 @@ function graph_slurm_probejob_pendtime ( &$rrdtool_graph ) {
 	$rrdtool_graph['vertical-label'] = 'seconds';
 	$rrdtool_graph['series'] = $series;
 
-	//      return $rrdtool_graph;
+	return $rrdtool_graph;
 }
 ?>

@@ -16,7 +16,7 @@ function graph_slurm_probejob_pendtime ( &$rrdtool_graph ) {
 	foreach ($json_conf['probejob_partitions'] as $partition)
 	{
 		$series = $series."LINE2:'".$partition."'".$colours[$i].":'".$partition."' ";
-		$i++;
+		$i = min($i+1, count($colours)-1);  //reuse the last color if there are more partitions than colors
 	}
 
 	//required

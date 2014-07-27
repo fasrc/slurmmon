@@ -32,4 +32,3 @@ function graph_slurm_probejob_pendtime ( &$rrdtool_graph ) {
         //      return $rrdtool_graph;
 }
 ?>
-

@@ -83,6 +83,7 @@ rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages
 %files ganglia
 %defattr(-,apache,apache,-)
 /var/www/ganglia/graph.d/*
+%config(noreplace) /etc/slurmmon.conf
 
 %files web
 %defattr(-,root,root,-)

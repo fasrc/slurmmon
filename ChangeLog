@@ -1,5 +1,5 @@
 0.0.3 (upcoming)
-	* ganglia probe job graph reads partion names from config (thanks cinek810)
+    * ganglia probe job graph reads partition names from config (thanks cinek810)
 
 0.0.2 (2014-03-31)
     * added the slurmmon python package

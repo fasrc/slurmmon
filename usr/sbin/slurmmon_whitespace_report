@@ -199,16 +199,16 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 					except KeyError:
 						rhtml += '<td style="vertical-align:text-top;">%s</td>' % v
 
-				html += '<td style="vertical-align:text-top;">'
+				rhtml += '<td style="vertical-align:text-top;">'
 				for j in jobs.get_jobs_running_on_host(n['NodeName']):
-					html += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
+					rhtml += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
 					try:
 						with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
 							f.write(jobs.job_html_report(j).encode('utf-8','replace'))
 					except Exception, e:
 						sys.stderr.write("WARNING: unable to write job report for job [%s]: %s\n" % (j, e))
 						exit_status = 1
-				html += '</td>'
+				rhtml += '</td>'
 
 				rhtml += '</tr>\n'
 			except Exception, e:

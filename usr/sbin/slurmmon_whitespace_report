@@ -110,20 +110,35 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 		for s in ('user', 'job', 'CPU days wasted', 'CPU efficiency', 'cores allocated', 'job script preview (click job link for full details)'):
 			html += '<th>%s</th>' % s
 		html += '</tr>'
+
+		#functions to convert a job parameter value to html
+		to_html = {
+			'JobID':
+				lambda v: '<td><a href="jobs/%s.html">%s</a></td>' % (v, v),
+			'CPU_Wasted':
+				lambda v: '<td style="text-align:right;"><strong>%s</strong></td>' % int(round(v/(60*60*24))),
+			'CPU_Efficiency':
+				lambda v: '<td style="text-align:right;">%d%%</td>' % int(round(j['CPU_Efficiency']*100)),
+			'NCPUS':
+				lambda v: '<td style="text-align:right;">%s</td>' % v,
+		}
 		
 		#entries
 		for j in jobs_cpu_wasters:
-			html += '<tr>'
-			for i, x in enumerate((j['User'], j['JobID'], int(round(j['CPU_Wasted']/(60*60*24))), '%d%%' % int(round(j['CPU_Efficiency']*100)), j['NCPUS'], config.syntax_highlight(j['JobScriptPreview']))):
-				if i==1:
-					html += '<td><a href="jobs/%s.html">%s</a></td>' % (x, x)
-				elif i==2:
-					html += '<td style="text-align:right;"><strong>%s</strong></td>' % x
-				elif i in (3, 4):
-					html += '<td style="text-align:right;">%s</td>' % x
-				else:
-					html += '<td>%s</td>' % x
-			html += '</tr>\n'
+			try:
+				jhtml += '<tr>'
+				for k in ('User', 'JobID', 'CPU_Wasted', 'CPU_Efficiency', 'NCPUS', 'JobScriptPreview'):
+					v = j[k]
+					try:
+						jhtml += to_html[k](v)
+					except KeyError:
+						jhtml += '<td>%s</td>' % v
+				jhtml += '</tr>\n'
+			except Exception:
+				sys.stderr.write("WARNING: unable to process job details for job [%s]\n" % j)
+				continue
+			else:
+				html += jhtml
 
 			with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
 				f.write(jobs.job_html_report(j))

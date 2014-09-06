@@ -1,6 +1,6 @@
 Name: slurmmon
 Version: 0.0.2
-Release: fasrc03
+Release: fasrc04
 Summary: gather and plot data about Slurm
 Packager: Harvard FAS Research Computing -- John Brunelle <john_brunelle@harvard.edu>
 Group: System Environment/Base
@@ -88,8 +88,6 @@ rsync -av lib/python/site-packages/ %{buildroot}/usr/lib/python2.6/site-packages
 %files web
 %defattr(-,root,root,-)
 /var/www/html/slurmmon/index.psp
-/var/www/html/slurmmon/whitespace/index.html
-/var/www/html/slurmmon/whitespace/0000-00-00_00:00:00/index.html
 %config(noreplace) /var/www/html/slurmmon/whitespace/latest
 %config(noreplace) /etc/httpd/conf.d/slurmmon.conf
 %config(noreplace) /etc/slurmmon.conf

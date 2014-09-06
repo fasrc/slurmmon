@@ -126,19 +126,19 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 		#entries
 		for j in jobs_cpu_wasters:
 			try:
-				jhtml += '<tr>'
+				rhtml += '<tr>'
 				for k in ('User', 'JobID', 'CPU_Wasted', 'CPU_Efficiency', 'NCPUS', 'JobScriptPreview'):
 					v = j[k]
 					try:
-						jhtml += to_html[k](v)
+						rhtml += to_html[k](v)
 					except KeyError:
-						jhtml += '<td>%s</td>' % v
-				jhtml += '</tr>\n'
+						rhtml += '<td>%s</td>' % v
+				rhtml += '</tr>\n'
 			except Exception:
 				sys.stderr.write("WARNING: unable to process job details for job [%s]\n" % j)
 				continue
 			else:
-				html += jhtml
+				html += rhtml
 
 			with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
 				f.write(jobs.job_html_report(j))
@@ -174,24 +174,38 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 			html += '<th>%s</th>' % s
 		html += '</tr>'
 
+		#functions to convert a node parameter value to html
+		to_html = {
+			'Cores_Wasted':
+				lambda v: '<td style="vertical-align:text-top;text-align:right;""><strong>%s</strong></td>' % v,
+		}
+
 		#entries
 		for n in nodes_cpu_wasters:
-			html += '<tr>'
-			for i, x in enumerate((n['NodeName'], n['Cores_Wasted'])):
-				if i==1:
-					html += '<td style="vertical-align:text-top;text-align:right;""><strong>%s</strong></td>' % x
-				else:
-					html += '<td style="vertical-align:text-top;">%s</td>' % x
-			
-			html += '<td style="vertical-align:text-top;">'
-			for j in jobs.get_jobs_running_on_host(n['NodeName']):
-				html += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
-				with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
-					f.write(jobs.job_html_report(j))
-			html += '</td>'
-			
-			html += '</tr>'
-		
+			try:
+				rhtml += '<tr>'
+
+				for k in ('NodeName', 'Cores_Wasted'):
+					v = n[k]
+					try:
+						rhtml += to_html[k](v)
+					except KeyError:
+						rhtml += '<td style="vertical-align:text-top;">%s</td>' % v
+
+				html += '<td style="vertical-align:text-top;">'
+				for j in jobs.get_jobs_running_on_host(n['NodeName']):
+					html += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
+					with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
+						f.write(jobs.job_html_report(j))
+				html += '</td>'
+
+				rhtml += '</tr>\n'
+			except Exception:
+				sys.stderr.write("WARNING: unable to process node details for node [%s]\n" % n)
+				continue
+			else:
+				html += rhtml
+
 		#wrap-up
 		html += '</table>'
 

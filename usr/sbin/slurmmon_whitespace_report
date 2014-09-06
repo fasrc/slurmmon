@@ -134,8 +134,9 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 					except KeyError:
 						rhtml += '<td>%s</td>' % v
 				rhtml += '</tr>\n'
-			except Exception:
-				sys.stderr.write("WARNING: unable to process job details for job [%s]\n" % j)
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process job details for job [%s]: %s\n" % (j, e))
+				exit_status = 1
 				continue
 			else:
 				html += rhtml
@@ -200,8 +201,9 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 				html += '</td>'
 
 				rhtml += '</tr>\n'
-			except Exception:
-				sys.stderr.write("WARNING: unable to process node details for node [%s]\n" % n)
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process node details for node [%s]: %s\n" % (n, e))
+				exit_status = 1
 				continue
 			else:
 				html += rhtml
@@ -222,6 +224,8 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 
 
 if __name__=='__main__':
+	exit_status = 0
+
 	conf = '/etc/slurmmon.conf'
 	output_dir = None
 
@@ -265,3 +269,5 @@ if __name__=='__main__':
 	except (OSError, IOError):
 		pass
 	os.symlink(tdirname, os.path.join(output_dir,'latest'))
+
+	sys.exit(exit_status)

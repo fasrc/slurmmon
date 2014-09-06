@@ -126,7 +126,7 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 		#entries
 		for j in jobs_cpu_wasters:
 			try:
-				rhtml += '<tr>'
+				rhtml = '<tr>'
 				for k in ('User', 'JobID', 'CPU_Wasted', 'CPU_Efficiency', 'NCPUS', 'JobScriptPreview'):
 					v = j[k]
 					try:
@@ -184,7 +184,7 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 		#entries
 		for n in nodes_cpu_wasters:
 			try:
-				rhtml += '<tr>'
+				rhtml = '<tr>'
 
 				for k in ('NodeName', 'Cores_Wasted'):
 					v = n[k]

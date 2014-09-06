@@ -121,6 +121,8 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 				lambda v: '<td style="text-align:right;">%d%%</td>' % int(round(j['CPU_Efficiency']*100)),
 			'NCPUS':
 				lambda v: '<td style="text-align:right;">%s</td>' % v,
+			'JobScriptPreview':
+				lambda v: '<td>%s</td>' % config.syntax_highlight(v),
 		}
 		
 		#entries

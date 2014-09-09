@@ -216,11 +216,11 @@ probejob_default_priority = conf.get('probejob_default_priority', 999999999)
 
 #metric_interval_*
 #the time to sleep between metric collection runs
-metric_interval_sdiag        = conf.get('metric_interval_sdiag'   ,     120)
-metric_interval_jobcount     = conf.get('metric_interval_jobcount',     120)
-metric_interval_reservations = conf.get('metric_interval_reservations', 120)
-metric_interval_probejob     = conf.get('metric_interval_probejob',     120)
-metric_interval_computenode  = conf.get('metric_interval_computenode',  120)
+metric_interval_sdiag        = conf.get('metric_interval_sdiag'   ,     120)  #only one node runs this
+metric_interval_jobcount     = conf.get('metric_interval_jobcount',     120)  #only one node runs this
+metric_interval_reservations = conf.get('metric_interval_reservations', 120)  #only one node runs this
+metric_interval_probejob     = conf.get('metric_interval_probejob',     120)  #only one node runs this
+metric_interval_computenode  = conf.get('metric_interval_computenode',  1200)  #every compute node runs this, so aggregate rate is this divided by node count (i.e. much more frequent)
 
 #metric_fail_retry_interval:
 #if a metric run fails, how long to wait before submitting again, in seconds

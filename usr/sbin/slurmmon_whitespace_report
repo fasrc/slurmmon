@@ -110,24 +110,46 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 		for s in ('user', 'job', 'CPU days wasted', 'CPU efficiency', 'cores allocated', 'job script preview (click job link for full details)'):
 			html += '<th>%s</th>' % s
 		html += '</tr>'
+
+		#functions to convert a job parameter value to html
+		to_html = {
+			'JobID':
+				lambda v: '<td><a href="jobs/%s.html">%s</a></td>' % (v, v),
+			'CPU_Wasted':
+				lambda v: '<td style="text-align:right;"><strong>%s</strong></td>' % int(round(v/(60*60*24))),
+			'CPU_Efficiency':
+				lambda v: '<td style="text-align:right;">%d%%</td>' % int(round(j['CPU_Efficiency']*100)),
+			'NCPUS':
+				lambda v: '<td style="text-align:right;">%s</td>' % v,
+			'JobScriptPreview':
+				lambda v: '<td>%s</td>' % config.syntax_highlight(v),
+		}
 		
 		#entries
 		for j in jobs_cpu_wasters:
-			html += '<tr>'
-			for i, x in enumerate((j['User'], j['JobID'], int(round(j['CPU_Wasted']/(60*60*24))), '%d%%' % int(round(j['CPU_Efficiency']*100)), j['NCPUS'], config.syntax_highlight(j['JobScriptPreview']))):
-				if i==1:
-					html += '<td><a href="jobs/%s.html">%s</a></td>' % (x, x)
-				elif i==2:
-					html += '<td style="text-align:right;"><strong>%s</strong></td>' % x
-				elif i in (3, 4):
-					html += '<td style="text-align:right;">%s</td>' % x
-				else:
-					html += '<td>%s</td>' % x
-			html += '</tr>\n'
+			try:
+				rhtml = '<tr>'
+				for k in ('User', 'JobID', 'CPU_Wasted', 'CPU_Efficiency', 'NCPUS', 'JobScriptPreview'):
+					v = j[k]
+					try:
+						rhtml += to_html[k](v)
+					except KeyError:
+						rhtml += '<td>%s</td>' % v
+				rhtml += '</tr>\n'
+				
+				try:
+					with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
+						f.write(jobs.job_html_report(j).encode('utf-8','replace'))
+				except Exception, e:
+					sys.stderr.write("WARNING: unable to write job report for job [%s]: %s\n" % (j, e))
+					exit_status = 1
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process job details for job [%s]: %s\n" % (j, e))
+				exit_status = 1
+				continue
+			else:
+				html += rhtml
 
-			with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
-				f.write(jobs.job_html_report(j))
-		
 		#wrap-up
 		html += '</table>'
 
@@ -159,24 +181,43 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 			html += '<th>%s</th>' % s
 		html += '</tr>'
 
+		#functions to convert a node parameter value to html
+		to_html = {
+			'Cores_Wasted':
+				lambda v: '<td style="vertical-align:text-top;text-align:right;""><strong>%s</strong></td>' % v,
+		}
+
 		#entries
 		for n in nodes_cpu_wasters:
-			html += '<tr>'
-			for i, x in enumerate((n['NodeName'], n['Cores_Wasted'])):
-				if i==1:
-					html += '<td style="vertical-align:text-top;text-align:right;""><strong>%s</strong></td>' % x
-				else:
-					html += '<td style="vertical-align:text-top;">%s</td>' % x
-			
-			html += '<td style="vertical-align:text-top;">'
-			for j in jobs.get_jobs_running_on_host(n['NodeName']):
-				html += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
-				with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
-					f.write(jobs.job_html_report(j))
-			html += '</td>'
-			
-			html += '</tr>'
-		
+			try:
+				rhtml = '<tr>'
+
+				for k in ('NodeName', 'Cores_Wasted'):
+					v = n[k]
+					try:
+						rhtml += to_html[k](v)
+					except KeyError:
+						rhtml += '<td style="vertical-align:text-top;">%s</td>' % v
+
+				rhtml += '<td style="vertical-align:text-top;">'
+				for j in jobs.get_jobs_running_on_host(n['NodeName']):
+					rhtml += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
+					try:
+						with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
+							f.write(jobs.job_html_report(j).encode('utf-8','replace'))
+					except Exception, e:
+						sys.stderr.write("WARNING: unable to write job report for job [%s]: %s\n" % (j, e))
+						exit_status = 1
+				rhtml += '</td>'
+
+				rhtml += '</tr>\n'
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process node details for node [%s]: %s\n" % (n, e))
+				exit_status = 1
+				continue
+			else:
+				html += rhtml
+
 		#wrap-up
 		html += '</table>'
 
@@ -189,10 +230,12 @@ def write_report(output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
 	html += '</html>'
 	
 	with open(os.path.join(output_dir,page_filename),'w') as f:
-		f.write(html)
+		f.write(html.encode('utf-8','ignore'))
 
 
 if __name__=='__main__':
+	exit_status = 0
+
 	conf = '/etc/slurmmon.conf'
 	output_dir = None
 
@@ -236,3 +279,5 @@ if __name__=='__main__':
 	except (OSError, IOError):
 		pass
 	os.symlink(tdirname, os.path.join(output_dir,'latest'))
+
+	sys.exit(exit_status)

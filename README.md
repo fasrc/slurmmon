@@ -19,11 +19,15 @@ See the `doc` directory for more information, specifically:
 * [INSTALL](doc/INSTALL.md) for initial installation and setup
 * [FAQ](doc/FAQ.md) for answers to common questions and other details
 
+---
+
 Here is a screenshot of the basic diagnostic report from the production cluster at FASRC:
 
 [![slurmmon screenshot](screenshots/slurmmon.png "slurmmon screenshot")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon.png)
 
 It shows how something interesting happened on the 31st -- there was a spike in *job turnaround* and *slurmctld agent queue size*.
+
+---
 
 Here is an example daily whitespace (CPU waste) report:
 
@@ -31,6 +35,8 @@ Here is an example daily whitespace (CPU waste) report:
 
 Of the jobs that completed in that day, the top CPU-waster was sophia's, and it was a case of mismatched Slurm `-n` (128) and mpirun `-np` (16) (the latter is unnecessary -- user education opportunity).
 Lots of other jobs show the issue of asking for many CPU cores but using only one.
+
+---
 
 Here is a stack of plots from our Slurm upgrade from `2.6.9` to `14.03.4`:
 

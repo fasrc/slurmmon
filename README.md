@@ -33,12 +33,12 @@ Here is an example daily whitespace (CPU waste) report:
 
 [![slurmmon whitespace report screenshot](screenshots/slurmmon_whitespace_report.png "slurmmon whitespace report screenshot")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon_whitespace_report.png)
 
-Of the jobs that completed in that day, the top CPU-waster was sophia's, and it was a case of mismatched Slurm `-n` (128) and mpirun `-np` (16) (the latter is unnecessary -- user education opportunity).
+Of the jobs that completed in that day, the top CPU-waster was *sophia*'s, and it was a case of mismatched Slurm `-n` (128) and mpirun `-np` (16) (the latter is unnecessary -- user education opportunity).
 Lots of other jobs show the issue of asking for many CPU cores but using only one.
 
 ---
 
-Here is a stack of plots from our Slurm upgrade from `2.6.9` to `14.03.4`:
+Here is a stack of plots from our Slurm upgrade from 2.6.9 to 14.03.4 around 10:00:
 
 [![slurm upgrade](screenshots/slurmmon_slurm_upgrade.png "slurm upgrade")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon_slurm_upgrade.png)
 

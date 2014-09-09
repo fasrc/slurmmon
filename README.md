@@ -1,8 +1,8 @@
 Slurmmon is a system for gaining insight into [Slurm](http://www.schedmd.com/) and the jobs it runs.
-It's meant for cluster administrators looking to raise cluster utilization and measure the effects of configuration changes.
+It's meant for cluster administrators looking to measure the effects of configuration changes and raise cluster utilization.
 Features include:
 
-* trending all the scheduler performance diagnostics (`sdiag` output)
+* trending all the scheduler performance diagnostics (the numbers from `sdiag`)
 * measuring job turnaround time of *probe jobs*, as a bellwether of scheduling issues
 * creating daily *whitespace* reports -- identifying specific users and jobs with low utilization of their allocations (the jobs that lead to the dreaded whitespace gap in plots of total resources vs. used resources)
 
@@ -21,4 +21,19 @@ See the `doc` directory for more information, specifically:
 
 Here is a screenshot of the basic diagnostic report from the production cluster at FASRC:
 
-![slurmmon screenshot](slurmmon_screenshot_small.png "slurmmon screenshot")
+[![slurmmon screenshot](screenshots/slurmmon.png "slurmmon screenshot")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon.png)
+
+It shows how something interesting happened on the 31st -- there was a spike in *job turnaround* and *slurmctld agent queue size*.
+
+Here is an example daily whitespace (CPU waste) report:
+
+[![slurmmon whitespace report screenshot](screenshots/slurmmon_whitespace_report.png "slurmmon whitespace report screenshot")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon_whitespace_report.png)
+
+Of the jobs that completed in that day, the top CPU-waster was sophia's, and it was a case of mismatched Slurm `-n` (128) and mpirun `-np` (16) (the latter is unnecessary -- user education opportunity).
+Lots of other jobs show the issue of asking for many CPU cores but using only one.
+
+Here is a stack of plots from our Slurm upgrade from `2.6.9` to `14.03.4`:
+
+[![slurm upgrade](screenshots/slurmmon_slurm_upgrade.png "slurm upgrade")](https://raw.githubusercontent.com/fasrc/slurmmon/master/screenshots/slurmmon_slurm_upgrade.png)
+
+It shows the much faster backfill scheduler runs (top plot), deeper backfill scheduler runs (middle plot), and higher job throughput (slope of completed jobs in bottom plot).

@@ -11,7 +11,7 @@ function graph_slurm_probejob_pendtime ( &$rrdtool_graph ) {
 		$series = $series."DEF:'".$partition."'='${rrd_dir}/slurmmond_probejob_pendtime_".$partition.".rrd':'sum':AVERAGE ";
 	}
 
-	$colours = array("#00000f","#ff0000","#00ff00","#ffff00","#0000ff");
+	$colours = array("#00000f","#ff0000","#00ff00","#ffff00","#0000ff","#ffaa00","#ff00bb");
 	$i = 0;
 	foreach ($json_conf['probejob_partitions'] as $partition)
 	{

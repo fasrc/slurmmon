@@ -1,14 +1,31 @@
-0.0.3 (upcoming)
-    * bug fixes for whitespace edge cases of empty cluster and short jobs
-      (reported by @henkela)
-    * ganglia probe job graph reads partition names from config (thanks
-      @cinek810)
+0.0.3
+    0.0.3-fasrc01 (upcoming)
+    * switched to using slyme (https://github.com/fasrc/slyme) and dio
+      (https://github.com/jabrcx/dio) instead of slurmmon-python
 
-0.0.2 (2014-03-31)
+0.0.2
+    0.0.2-fasrc05 (upcoming)
+    * added more colors in probe job graph (#2, thanks @cinek810)
+    * turn down metric_interval_computenode
+
+    0.0.2-fasrc04 (2014-09-08)
+    * bug fixes for whitespace edge cases of empty cluster and short jobs (#3,
+      reported by @henkela)
+    * ganglia probe job graph reads partition names from config and supports
+      more colors (#1, thanks @cinek810)
+
+    0.0.2-fasrc03 (2014-05-02)
+    * bug fix for updating `latest` whitespace symlink
+    * minor documentation updates
+
+    (0.0.2-fasrc02 n/a)
+
+    0.0.2-fasrc01 (2014-03-31)
     * added the slurmmon python package
     * added computenode metric set for allocation vs utilization (to be run on
       each compute node)
     * added "whitespace" reporting for allocation vs utilization
 
-0.0.1 (2014-01-23)
-    initial release
+0.0.1
+    0.0.1-fasrc01 (2014-01-23)
+    * initial release

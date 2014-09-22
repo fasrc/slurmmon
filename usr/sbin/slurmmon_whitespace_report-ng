@@ -1,0 +1,323 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2013-2014
+# Harvard FAS Research Computing
+# All rights reserved.
+
+"""\
+NAME
+	slurmmon_whitespace_report - report poor utilization vs. allocation ratios
+
+SYNOPSIS
+	slurmmon_whitespace_report
+
+DESCRIPTION
+	n/a
+
+OPTIONS
+	--starttime YYYY-MM-DDTHH:MM:SS
+		Adjust the start of the search window.  The default is 24 hours ago.
+	
+	--endtime YYYY-MM-DDTHH:MM:SS
+		Adjust the end of the search window.  The default is now.
+	
+	-o, --output-dir DIRECTORY
+		The directory into which to write the report and supporting webpages.
+		The default is the `web_root'/whitespace, where `web_root' is from
+		/etc/slurmmon.conf, or, if that config file is not available, just the
+		current working directory.
+
+		Note that within this directory, this script makes a time-stamped
+		subdirectory and updates a symbolic link named `latest' that points to
+		it.
+
+	-h, --help
+		Print this help.
+
+REQUIREMENTS
+	n/a
+
+BUGS/TODO
+	n/a
+
+AUTHOR
+	Copyright (c) 2013-2014
+	Harvard FAS Research Computing
+"""
+
+
+import sys, os, time, datetime, getopt, json
+import dio
+import slyme, slyme.jobs
+try:
+	import slurmmon
+except ImportError:
+	#try adding where it exists if this is being run out of the source tree
+	sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..', 'lib/python/site-packages')))
+	import slurmmon
+from slurmmon import config, jobs, nodes
+
+
+def write_report(starttime, endtime, output_dir, completed_jobs_cpu=True, live_nodes_cpu=True):
+	#=== config
+
+	#time range in which to look, if applicable (historical vs live data)
+	range = datetime.timedelta(days=1)
+
+	#the amount of entries to include in tables
+	limit = 15
+
+	state = 'COMPLETED'
+
+	page_title = 'slurm whitespace -- poor allocation vs utilization'
+	page_filename = 'index.html'
+	jobs_dirname = os.path.join(output_dir, 'jobs')
+
+
+
+	#=== intro
+
+	os.mkdir(output_dir)
+	os.mkdir(jobs_dirname)
+
+	html = '<html>'
+	html += '<head><title>%s</title>' % page_title
+	html += '<style>\n%s\n</style>\n' % config.syntax_highlight_css
+	html += '</head>'
+	html += '<body>'
+
+	html += config.whitespace_report_top_html()
+
+
+
+	#=== completed jobs cpu
+
+	if completed_jobs_cpu:
+		html += '<h1>completed jobs</h1>'
+
+
+		#--- get jobs
+
+		#jobs_all = jobs.get_jobs(state=state, starttime=starttime, endtime=endtime, filter=config.filter_whitespace_cpu_job)
+
+		@dio.processor
+		def filter_whitespace_cpu_jobx(out=None, err=None):
+			while True:
+				d = yield
+				if config.filter_whitespace_cpu_job(d):
+					out.send(d)
+
+		jobs_all = []
+		slyme.jobs.history({
+				'State': state,
+				'Start': starttime,
+				'End'  : endtime,
+			},
+			out=filter_whitespace_cpu_jobx(
+				out=dio.buffer_out(
+					out=jobs_all,
+				)
+			)
+		)
+
+
+		#--- cpu wasters
+
+		jobs_cpu_wasters = sorted(jobs_all, lambda j1, j2: -cmp(j1['CPU_Wasted'],j2['CPU_Wasted']))[:limit]
+
+		#description
+		html += '<h2>CPU wasters</h2>'
+		html += '<h3>top CPU-wasteful %s jobs in last %s</h3>' % (state, range)
+		html += '<table border="2" cellpadding="10">\n'
+
+		#header
+		html += '<tr>'
+		for s in ('user', 'job', 'CPU days wasted', 'CPU efficiency', 'cores allocated', 'job script preview (click job link for full details)'):
+			html += '<th>%s</th>' % s
+		html += '</tr>'
+
+		#functions to convert a job parameter value to html
+		to_html = {
+			'JobID':
+				lambda v: '<td><a href="jobs/%s.html">%s</a></td>' % (v, v),
+			'CPU_Wasted':
+				lambda v: '<td style="text-align:right;"><strong>%s</strong></td>' % int(round(v/(60*60*24))),
+			'CPU_Efficiency':
+				lambda v: '<td style="text-align:right;">%d%%</td>' % int(round(j['CPU_Efficiency']*100)),
+			'NCPUS':
+				lambda v: '<td style="text-align:right;">%s</td>' % v,
+			'JobScriptPreview':
+				lambda v: '<td>%s</td>' % config.syntax_highlight(v),
+		}
+
+		#entries
+		for j in jobs_cpu_wasters:
+			try:
+				rhtml = '<tr>'
+				for k in ('User', 'JobID', 'CPU_Wasted', 'CPU_Efficiency', 'NCPUS', 'JobScriptPreview'):
+					try:
+						v = j[k]
+						try:
+							rhtml += to_html[k](v)
+						except KeyError:
+							rhtml += '<td>%s</td>' % v
+					except (KeyError, NotImplementedError):
+						rhtml += '<td><em>n/a</em></td>'
+				rhtml += '</tr>\n'
+
+				try:
+					with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
+						f.write(slyme.jobs.job_html_report(j).encode('utf-8','replace'))
+				except Exception, e:
+					sys.stderr.write("WARNING: unable to write job report for job [%s]: %s\n" % (j, e))
+					exit_status = 1
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process job details for job [%s]: %s\n" % (j, e))
+				exit_status = 1
+				continue
+			else:
+				html += rhtml
+
+		#wrap-up
+		html += '</table>'
+
+
+
+	#=== live node state
+
+	if live_nodes_cpu:
+		html += '<h1>live node state</h1>'
+
+
+		#--- get nodes
+
+		nodes_all = nodes.get_nodes(filter=config.filter_whitespace_cpu_node)
+
+
+		#--- cpu wasters
+
+		nodes_cpu_wasters = sorted(nodes_all, lambda n1, n2: -cmp(n1['Cores_Wasted'],n2['Cores_Wasted']))[:limit]
+
+		#description
+		html += '<h2>CPU wasters</h2>'
+		html += '<h3>top CPU-wasting nodes</h3>'
+		html += '<table border="2" cellpadding="10">'
+
+		#header
+		html += '<tr>'
+		for s in ('host', 'cores wasted', 'jobs'):
+			html += '<th>%s</th>' % s
+		html += '</tr>'
+
+		#functions to convert a node parameter value to html
+		to_html = {
+			'Cores_Wasted':
+				lambda v: '<td style="vertical-align:text-top;text-align:right;""><strong>%s</strong></td>' % v,
+		}
+
+		#entries
+		for n in nodes_cpu_wasters:
+			try:
+				rhtml = '<tr>'
+
+				for k in ('NodeName', 'Cores_Wasted'):
+					v = n[k]
+					try:
+						rhtml += to_html[k](v)
+					except KeyError:
+						rhtml += '<td style="vertical-align:text-top;">%s</td>' % v
+
+				rhtml += '<td style="vertical-align:text-top;">'
+				for j in jobs.get_jobs_running_on_host(n['NodeName']):
+					rhtml += '<a href="jobs/%s.html">%s</a> %s / %s core(s) / %s node(s)<br />' % (j['JobID'], j['JobID'], j['User'], j['NCPUS'], j['NNodes'])
+					try:
+						with open(os.path.join(jobs_dirname, '%s.html' % j['JobID']), 'w') as f:
+							f.write(slyme.jobs.job_html_report(j).encode('utf-8','replace'))
+					except Exception, e:
+						sys.stderr.write("WARNING: unable to write job report for job [%s]: %s\n" % (j, e))
+						exit_status = 1
+				rhtml += '</td>'
+
+				rhtml += '</tr>\n'
+			except Exception, e:
+				sys.stderr.write("WARNING: unable to process node details for node [%s]: %s\n" % (n, e))
+				exit_status = 1
+				continue
+			else:
+				html += rhtml
+
+		#wrap-up
+		html += '</table>'
+
+
+
+	#=== wrap-up
+
+	html += '<br />page last updated: <strong>%s</strong><br />' % time.ctime()
+	html += '</body>'
+	html += '</html>'
+
+	with open(os.path.join(output_dir,page_filename),'w') as f:
+		f.write(html.encode('utf-8','ignore'))
+
+
+if __name__=='__main__':
+	exit_status = 0
+
+	conf = '/etc/slurmmon.conf'
+	output_dir = None
+
+	endtime = datetime.datetime.now()
+	starttime = endtime - datetime.timedelta(days=1)
+	endtime = slyme.datetime_to_slurm_timestamp(endtime)
+	starttime = slyme.datetime_to_slurm_timestamp(starttime)
+
+	try:
+		opts, args = getopt.gnu_getopt(sys.argv[1:], 'o:h', ('starttime=', 'endtime=', 'output-dir=', 'help',))
+	except getopt.GetoptError, e:
+		sys.stderr.write("*** ERROR **** unable to process command line options: %s\n" % e)
+		sys.exit(1)
+	for opt, optarg in opts:
+		if opt == '--starttime':
+			starttime = optarg
+		elif opt == '--endtime':
+			endtime = optarg
+		
+		elif opt in ('-o', '--output-dir'):
+			output_dir = optarg
+
+		elif opt in ('-h', '--help'):
+			sys.stdout.write(__doc__)
+			sys.exit(0)
+
+	#the timestamp of this report
+	tstart = time.time()
+	tstartstr = time.ctime(tstart)
+	tdirname = time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime(tstart))
+
+	#determine actual output directory
+	if output_dir is None:
+		conf = json.load(open(conf, 'r'))
+		web_root = conf.get('web_root')
+		if web_root is not None:
+			output_dir = os.path.join(web_root.encode('utf-8'), 'whitespace')
+		else:
+			output_dir = os.getcwd()
+
+	#write the report
+	write_report(
+		starttime,
+		endtime,
+		os.path.join(output_dir, tdirname),
+		completed_jobs_cpu=True,
+		live_nodes_cpu=False,
+	)
+
+	#update the symlink for the latest report
+	try:
+		os.remove(os.path.join(output_dir, 'latest'))
+	except (OSError, IOError):
+		pass
+	os.symlink(tdirname, os.path.join(output_dir,'latest'))
+
+	sys.exit(exit_status)

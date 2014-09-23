@@ -47,7 +47,7 @@ AUTHOR
 
 
 import sys, os, time, datetime, getopt, json
-import dio
+import dio, dio.coreutils
 import slyme, slyme.jobs
 try:
 	import slurmmon
@@ -98,32 +98,33 @@ def write_report(starttime, endtime, output_dir, completed_jobs_cpu=True, live_n
 
 		#--- get jobs
 
-		#jobs_all = jobs.get_jobs(state=state, starttime=starttime, endtime=endtime, filter=config.filter_whitespace_cpu_job)
-
 		@dio.processor
-		def filter_whitespace_cpu_jobx(out=None, err=None):
+		def filter_whitespace_cpu_job(out=None, err=None):
+			"""A processor that only emits jobs that satisfy the configurable whitespace filter."""
 			while True:
 				d = yield
 				if config.filter_whitespace_cpu_job(d):
 					out.send(d)
 
-		jobs_all = []
+		jobs_cpu_wasters = []
 		slyme.jobs.history({
 				'State': state,
 				'Start': starttime,
 				'End'  : endtime,
 			},
-			out=filter_whitespace_cpu_jobx(
-				out=dio.buffer_out(
-					out=jobs_all,
+			out=filter_whitespace_cpu_job(
+				out=dio.max_(limit, 'CPU_Wasted',
+					out=dio.coreutils.sort(keys=['CPU_Wasted'], reverse=True,
+						out=dio.buffer_out(
+							out=jobs_cpu_wasters,
+						)
+					)
 				)
 			)
 		)
 
 
 		#--- cpu wasters
-
-		jobs_cpu_wasters = sorted(jobs_all, lambda j1, j2: -cmp(j1['CPU_Wasted'],j2['CPU_Wasted']))[:limit]
 
 		#description
 		html += '<h2>CPU wasters</h2>'
